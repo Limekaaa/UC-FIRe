@@ -73,7 +73,7 @@ def distance(word1:str, word2:str, embeddings:pd.DataFrame) -> float:
     return np.linalg.norm(embeddings.loc[word1] - embeddings.loc[word2])
 
 
-def get_nearest_neighbors(word:str, embeddings:pd.DataFrame, n_neighbors:int=5) -> list:
+def get_nearest_neighbors(word:str, embeddings:pd.DataFrame, n_neighbors:int=5, metric = 'cosine') -> list:
     """
     Function to get the nearest neighbors of a word
     :param word: str - the word to get the nearest neighbors
@@ -81,7 +81,7 @@ def get_nearest_neighbors(word:str, embeddings:pd.DataFrame, n_neighbors:int=5) 
     :param n_neighbors: int - the number of neighbors to get
     :return: list - a list with the nearest neighbors
     """
-    neighbors = NearestNeighbors(n_neighbors=n_neighbors, metric='cosine').fit(embeddings)
+    neighbors = NearestNeighbors(n_neighbors=n_neighbors, metric=metric).fit(embeddings)
     return neighbors.kneighbors(embeddings.loc[word].values.reshape(1,-1))
 
 
@@ -89,12 +89,11 @@ def get_similarity_matrix(embeddings:pd.DataFrame, metric:str = 'euclidean', n_n
     """
     Function to calculate the similarity matrix between all words
     :param embeddings: pd.DataFrame - a dataframe with the embeddings of each word
-    :param func: function - the function to calculate the similarity between two words, form of the function is func(word1:str, word2:str, embeddings:pd.DataFrame) -> float
     :return: pd.DataFrame - a dataframe with the similarity score between all words
     """
 
     neighbors = NearestNeighbors(n_neighbors=n_neighbors, metric=metric).fit(embeddings)
-    distances, indices = neighbors.kneighbors(embeddings)
+    distances, indices = neighbors.kneighbors(embeddings) # 
     max_dist = np.max(distances)
     filled_mat= np.zeros((len(embeddings), len(embeddings)))
 
