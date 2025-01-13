@@ -17,7 +17,7 @@ def pre_process(elem_to_preprocess: tuple[int, dict[str,str]]) -> tuple[int, str
   """
 
   key, val = elem_to_preprocess
-  return key, f"{clean_tokens(nlp(val['title']))} {clean_tokens(nlp(val['text']))}" # Cleaning the text document
+  return key, f"{clean_tokens(nlp(val['title'].lower()))} {clean_tokens(nlp(val['text'].lower()))}" # Cleaning the text document
  
 # Helper function to process a single key-value pair
 def process_item(item):

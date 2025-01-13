@@ -18,7 +18,7 @@ class Retriever:
     for query_id, query in tqdm(queries.items(), desc="tests in progress"):
         # Process the query
         #cleaned_query = preprocess_corpus([query])
-        cleaned_query = corpus_processing.clean_tokens(corpus_processing.nlp(query))
+        cleaned_query = corpus_processing.clean_tokens(corpus_processing.nlp(query.lower()))
         cleaned_query = clustering.rewrite_text(cleaned_query, self.clusters_dict)
         tokenized_query = cleaned_query.split(" ")
         # Apply BM25 to get scores
