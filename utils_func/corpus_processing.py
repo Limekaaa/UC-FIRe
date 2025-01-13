@@ -7,8 +7,7 @@ from multiprocessing import Pool, cpu_count
 
 nlp = spacy.load('en_core_web_sm')
 stopwords = nlp.Defaults.stop_words
-clean_tokens = lambda tokens : ' '.join([token.lemma_.lower() for token in tokens if token not in stopwords and not token.is_punct])
-
+clean_tokens = lambda tokens : ' '.join([token.lemma_.lower() for token in tokens if token.lemma_.lower() not in stopwords and not token.is_punct])
 
 def pre_process(elem_to_preprocess: tuple[int, dict[str,str]]) -> tuple[int, str]:
   """
