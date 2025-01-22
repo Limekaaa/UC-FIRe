@@ -1,5 +1,6 @@
 import pandas as pd 
 from tqdm import tqdm
+from utils_func import matrix_creation
 
 class Graph:
     def __init__(self, graph_dict=None):
@@ -97,6 +98,7 @@ class Graph:
             res += str(edge) + " "
         return res
 
+
 def get_replaceable_words(similarity_matrix:pd.DataFrame, coexistence_matrix:pd.DataFrame, alpha = 0.5, thresh = 0.8) -> dict[str, set[str]]:
     """
     Get for each word, the set of words that can replace it in a sentence according to the constraints on similarity and coexistence matrix.\n
@@ -108,10 +110,15 @@ def get_replaceable_words(similarity_matrix:pd.DataFrame, coexistence_matrix:pd.
     """
     all_words = list(set(similarity_matrix.index).intersection(set(coexistence_matrix.index)))
     to_ret = {}
-    for word in tqdm(all_words):
-        temp = alpha * similarity_matrix.loc[word] + (1-alpha) * coexistence_matrix.loc[word]
-        to_ret[word] = set(temp[temp > thresh].index)
-
+    if type(coexistence_matrix) == matrix_creation.coex_matrix:
+        for word in tqdm(all_words):
+            temp = alpha * similarity_matrix.loc[word] + (1-alpha) * coexistence_matrix.loc(word)
+            to_ret[word] = set(temp[temp > thresh].index)
+    else:
+        for word in tqdm(all_words):
+            temp = alpha * similarity_matrix.loc[word] + (1-alpha) * coexistence_matrix.loc[word]
+            to_ret[word] = set(temp[temp > thresh].index)
+            
     return to_ret
 
 def clusters_dict(clusters:list[set[str]]) -> dict[str:str]:

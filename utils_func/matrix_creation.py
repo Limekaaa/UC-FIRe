@@ -3,6 +3,20 @@ import numpy as np
 from tqdm import tqdm
 from sklearn.neighbors import NearestNeighbors
 
+class coex_matrix:
+    def __init__(self, dico:dict[str, dict[str, float]], unique_words:list[str]):
+        self.dico = dico
+        self.index = unique_words
+        self.columns = unique_words
+    def __getitem__(self, key:str):
+        return self.dico[key]
+    
+    def loc(self, word):
+        temp = np.zeros(len(self.index))
+        for i in list(self.dico[word].keys()):
+            temp[self.index.index(i)] = self.dico[word][i]
+        return pd.Series(temp, index=self.index)
+
 
 def get_unique_words(corpus:dict[int, str]) -> set:
     """
@@ -33,6 +47,19 @@ def get_word_presence(corpus:dict[int, str]) -> dict[str, set[int]]:
         for word in text:
             word_presence[word].add(doc_id)
     return word_presence
+
+def words_coexistence_probability_compact(corpus:dict[int, str]) -> coex_matrix:
+    dico = dict()
+    word_presence = get_word_presence(corpus)
+    unique_words = list(get_unique_words(corpus))
+
+    for word2 in tqdm(range(len(unique_words))):
+        dico[unique_words[word2]] = dict()
+        for word1 in range(len(unique_words)):
+            inter = len(word_presence[unique_words[word1]].intersection(word_presence[unique_words[word2]]))
+            if inter > 0:
+                dico[unique_words[word2]][unique_words[word1]] = inter/max(len(word_presence[unique_words[word1]] | word_presence[unique_words[word2]]), 1)
+    return coex_matrix(dico, unique_words)
 
 
 def words_coexistence_probability(corpus:dict[int, str]) -> pd.DataFrame:
