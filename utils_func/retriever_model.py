@@ -30,7 +30,7 @@ class Retriever:
     return results
 
 class FullRetriever:
-  def __init__(self, embeddings:pd.DataFrame, n_neighbors = 20, alpha:float=0.5, thresh = 0.8, metric = 'cosine', k1:float = 0.9, b:float = 0.4,coexistence_matrix:pd.DataFrame = None):
+  def __init__(self, embeddings:pd.DataFrame, n_neighbors = 20, alpha:float=0.5, thresh = 0.8, metric = 'cosine', k1:float = 0.9, b:float = 0.4,coexistence_matrix:pd.DataFrame = None, thresh_prob = 0, compact_matrix = False):
     self.n_neighbors = n_neighbors
     self.alpha = alpha
     self.thresh = thresh
@@ -40,6 +40,8 @@ class FullRetriever:
     self.k1 = k1
     self.b = b
     self.cleaned_corpus = None
+    self.thresh_prob = thresh_prob
+    self.compact_matrix = compact_matrix
 
 
   def fit(self, corpus:dict[str, str], is_clean = False):
@@ -48,7 +50,10 @@ class FullRetriever:
     else:
       self.cleaned_corpus = corpus
     if self.coexistence_matrix is None:
-      self.coexistence_matrix = matrix_creation.words_coexistence_probability(self.cleaned_corpus)
+      if self.compact_matrix or self.thresh_prob > 0:
+        self.coexistence_matrix = matrix_creation.words_coexistence_probability_compact(self.cleaned_corpus, self.thresh_prob)
+      else: 
+        self.coexistence_matrix = matrix_creation.words_coexistence_probability(self.cleaned_corpus)
 
     words_in_common = list(set(self.coexistence_matrix.columns).intersection(set(self.embeddings.index)))
     self.embeddings = self.embeddings.loc[words_in_common]

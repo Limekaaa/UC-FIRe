@@ -48,7 +48,13 @@ def get_word_presence(corpus:dict[int, str]) -> dict[str, set[int]]:
             word_presence[word].add(doc_id)
     return word_presence
 
-def words_coexistence_probability_compact(corpus:dict[int, str]) -> coex_matrix:
+def words_coexistence_probability_compact(corpus:dict[int, str], thresh_prob = 0) -> coex_matrix:
+    """
+    Function to calculate the probability of coexistence of each pair of words in the corpus in a compact way
+    :param corpus: dict[int, str] - a dictionary with the key being the document id and the value being the document text
+    :param thresh_prob: float - the threshold probability to consider the coexistence of two words, allow to reduce the size of the matrix
+    :return: pd.DataFrame - a dataframe with the probability of coexistence of each pair of words in the corpus
+    """
     dico = dict()
     word_presence = get_word_presence(corpus)
     unique_words = list(get_unique_words(corpus))
@@ -58,7 +64,9 @@ def words_coexistence_probability_compact(corpus:dict[int, str]) -> coex_matrix:
         for word1 in range(len(unique_words)):
             inter = len(word_presence[unique_words[word1]].intersection(word_presence[unique_words[word2]]))
             if inter > 0:
-                dico[unique_words[word2]][unique_words[word1]] = inter/max(len(word_presence[unique_words[word1]] | word_presence[unique_words[word2]]), 1)
+                prob = inter/max(len(word_presence[unique_words[word1]] | word_presence[unique_words[word2]]), 1)
+                if prob > thresh_prob:
+                    dico[unique_words[word2]][unique_words[word1]] = prob
     return coex_matrix(dico, unique_words)
 
 
