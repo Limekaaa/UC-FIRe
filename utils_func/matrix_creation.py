@@ -10,12 +10,20 @@ class coex_matrix:
         self.columns = unique_words
     def __getitem__(self, key:str):
         return self.dico[key]
-    
+
+    '''
     def loc(self, word):
         temp = np.zeros(len(self.index))
         for i in list(self.dico[word].keys()):
             temp[self.index.index(i)] = self.dico[word][i]
         return pd.Series(temp, index=self.index)
+    '''
+
+    def loc(self, word):
+        index = list(self.dico[word].keys())
+        vals = [self.dico[word][i] for i in index]
+
+        return pd.Series(vals, index=index)
 
 
 def get_unique_words(corpus:dict[int, str]) -> set:

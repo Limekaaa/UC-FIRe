@@ -112,7 +112,7 @@ def get_replaceable_words(similarity_matrix:pd.DataFrame, coexistence_matrix:pd.
     to_ret = {}
     if type(coexistence_matrix) == matrix_creation.coex_matrix:
         for word in tqdm(all_words):
-            temp = alpha * similarity_matrix.loc[word] + (1-alpha) * coexistence_matrix.loc(word)
+            temp = similarity_matrix.loc[word].multiply(alpha).add(coexistence_matrix.loc(word).multiply(1-alpha), fill_value=0)
             to_ret[word] = set(temp[temp > thresh].index)
     else:
         for word in tqdm(all_words):
