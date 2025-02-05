@@ -2,6 +2,9 @@ import pandas as pd
 from tqdm import tqdm
 from utils_func import matrix_creation
 
+import multiprocessing as mp
+from typing import Dict, Set, Any
+
 class Graph:
     def __init__(self, graph_dict=None):
         if graph_dict is None:
@@ -98,7 +101,7 @@ class Graph:
             res += str(edge) + " "
         return res
 
-
+'''
 def get_replaceable_words(similarity_matrix:pd.DataFrame, coexistence_matrix:pd.DataFrame, alpha = 0.5, thresh = 0.8) -> dict[str, set[str]]:
     """
     Get for each word, the set of words that can replace it in a sentence according to the constraints on similarity and coexistence matrix.\n
@@ -120,7 +123,7 @@ def get_replaceable_words(similarity_matrix:pd.DataFrame, coexistence_matrix:pd.
             to_ret[word] = set(temp[temp > thresh].index)
             
     return to_ret
-
+'''
 def clusters_dict(clusters:list[set[str]]) -> dict[str:str]:
     """
     Get a dictionary containing for each word, the cluster it belongs to.\n
@@ -164,3 +167,81 @@ def rewrite_corpus(corpus:dict[str,str], clust_dict:dict[str,str]) -> dict[str,s
     to_ret = {key:rewrite_text(corpus[key], clust_dict) for key in tqdm(corpus.keys())}
 
     return to_ret
+
+
+
+
+
+###################################################################################################################
+import pandas as pd
+from multiprocessing import Pool
+from tqdm import tqdm
+from utils_func import matrix_creation  # Adjust import as needed
+
+global_similarity_matrix = None
+global_coex_matrix = None
+global_alpha = None
+global_thresh = None
+
+def init_worker(sim_mat: pd.DataFrame, coex_mat: pd.DataFrame, alpha: float, thresh: float):
+    """
+    Initializer for worker processes.
+    Sets up global variables for use in each worker.
+    """
+    global global_similarity_matrix, global_coex_matrix, global_alpha, global_thresh
+    global_similarity_matrix = sim_mat
+    global_coex_matrix = coex_mat
+    global_alpha = alpha
+    global_thresh = thresh
+
+def worker_replaceable(word: str) -> tuple[str, set[str]]:
+    """
+    Worker function that computes the set of words that can replace a given word.
+    It uses the global matrices and parameters.
+    """
+    # Check which method to use based on the type of coexistence matrix.
+    # (Assumes matrix_creation.coex_matrix is a custom type.)
+    if isinstance(global_coex_matrix, matrix_creation.coex_matrix):
+        # Use pandas Series.multiply and DataFrame.add methods.
+        # Note: We use .loc[word] for both matrices.
+        temp = global_similarity_matrix.loc[word].multiply(global_alpha).add(
+            global_coex_matrix.loc(word).multiply(1 - global_alpha), fill_value=0
+        )
+    else:
+        # Use vectorized arithmetic
+        temp = global_alpha * global_similarity_matrix.loc[word] + (1 - global_alpha) * global_coex_matrix.loc[word]
+    
+    # Select words that exceed the threshold.
+    replaceable = set(temp[temp > global_thresh].index)
+    return word, replaceable
+
+def get_replaceable_words(similarity_matrix: pd.DataFrame, 
+                          coexistence_matrix: pd.DataFrame, 
+                          alpha: float = 0.5, 
+                          thresh: float = 0.8) -> dict[str, set[str]]:
+    """
+    For each word, computes the set of words that can replace it based on a weighted 
+    combination of similarity and coexistence scores.
+    
+    The computation is parallelized across words.
+    
+    :param similarity_matrix: DataFrame with similarity scores (rows and columns are words)
+    :param coexistence_matrix: DataFrame with coexistence scores (rows and columns are words)
+    :param alpha: Weight for similarity (between 0 and 1)
+    :param thresh: Threshold above which a word is considered a replacement
+    :return: Dictionary mapping each word to a set of replacement words.
+    """
+    # Compute the list of words that are common to both matrices.
+    all_words = list(set(similarity_matrix.index).intersection(set(coexistence_matrix.index)))
+    results = {}
+
+    # Create a pool of worker processes.
+    # Be sure to protect the entry point with if __name__ == '__main__' when needed.
+    with Pool(initializer=init_worker, initargs=(similarity_matrix, coexistence_matrix, alpha, thresh)) as pool:
+        # Use pool.imap to distribute work and wrap it in a tqdm progress bar.
+        for word, replacements in tqdm(pool.imap(worker_replaceable, all_words),
+                                       total=len(all_words),
+                                       desc="Processing words"):
+            results[word] = replacements
+
+    return results
