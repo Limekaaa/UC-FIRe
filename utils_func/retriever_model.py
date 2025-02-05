@@ -51,7 +51,7 @@ class FullRetriever:
       self.cleaned_corpus = corpus
     if self.coexistence_matrix is None:
       if self.compact_matrix or self.thresh_prob > 0:
-        self.coexistence_matrix = matrix_creation.words_coexistence_probability_compact(self.cleaned_corpus, self.thresh_prob)
+        self.coexistence_matrix = matrix_creation.words_coexistence_probability_compact_parallel(self.cleaned_corpus, self.thresh_prob)
       else: 
         self.coexistence_matrix = matrix_creation.words_coexistence_probability(self.cleaned_corpus)
 

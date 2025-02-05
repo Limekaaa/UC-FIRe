@@ -3,6 +3,7 @@ from tqdm import tqdm
 import pandas as pd 
 
 from multiprocessing import Pool, cpu_count
+import multiprocessing
 
 
 nlp = spacy.load('en_core_web_sm')
@@ -23,7 +24,7 @@ def pre_process(elem_to_preprocess: tuple[int, dict[str,str]]) -> tuple[int, str
 def process_item(item):
     key, value = item
     return key, pre_process((key, value))[1]
-
+'''
 def preprocess_corpus_dict(corpus: dict[int, dict[str, str]]) -> dict[int, str]:
     """
     Preprocesses the text data in the corpus in parallel\n
@@ -41,7 +42,7 @@ def preprocess_corpus_dict(corpus: dict[int, dict[str, str]]) -> dict[int, str]:
     cleaned_corpus = {key: value for key, value in results}
 
     return cleaned_corpus
-
+'''
 """ Non parallel version
 
 def preprocess_corpus_dict(corpus: dict[int, dict[str,str]]) -> dict[int, str]:
@@ -67,3 +68,56 @@ def save_processed_corpus(corpus, path_to_save):
     df.reset_index(inplace=True)
     df.columns = ["doc_id", "text"]
     df.to_csv(path_to_save, index=False)
+    
+    
+def init_worker():
+    """
+    Cette fonction d'initialisation est appelée une fois 
+    dans chaque processus fils, juste après sa création.
+    """
+    global nlp, stopwords
+    nlp = spacy.load('en_core_web_sm')
+    stopwords = nlp.Defaults.stop_words
+
+def clean_tokens(tokens):
+    """ 
+    Nettoie les tokens en supprimant les stopwords et la ponctuation,
+    puis renvoie la lemmatisation en minuscules.
+    """
+    return ' '.join([
+        token.lemma_.lower()
+        for token in tokens
+        if (token.lemma_.lower() not in stopwords and not token.is_punct)
+    ])
+
+def process_item(item):
+    """
+    Fonction qui réalise le prétraitement d'un seul élément du corpus.
+    Retourne un tuple (key, texte_nettoyé).
+    """
+    key, val = item
+    title_clean = clean_tokens(nlp(val['title'].lower()))
+    text_clean  = clean_tokens(nlp(val['text'].lower()))
+    return key, f"{title_clean} {text_clean}"
+
+def preprocess_corpus_dict(corpus):
+    """
+    Prétraite l'ensemble du corpus (dict) en parallèle,
+    et affiche la progression via tqdm.
+    """
+    items = list(corpus.items())
+    results_dict = {}
+
+    # Pool de workers = nbre de CPUs dispo, 
+    # avec init_worker pour charger spaCy dans chaque sous-processus
+    with Pool(processes=cpu_count(), initializer=init_worker) as pool:
+        # imap_unordered retourne les résultats au fil de l'eau (ordre non garanti)
+        # On itère dessus pour mettre à jour la barre de progression
+        for key, processed_text in tqdm(
+            pool.imap_unordered(process_item, items),
+            total=len(items),
+            desc="Prétraitement du corpus"
+        ):
+            results_dict[key] = processed_text
+
+    return results_dict

@@ -173,6 +173,8 @@ def rewrite_corpus(corpus:dict[str,str], clust_dict:dict[str,str]) -> dict[str,s
 
 
 ###################################################################################################################
+# Parallelization
+
 import pandas as pd
 from multiprocessing import Pool
 from tqdm import tqdm
