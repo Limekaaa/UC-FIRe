@@ -3,6 +3,9 @@ import numpy as np
 from tqdm import tqdm
 from sklearn.neighbors import NearestNeighbors
 
+import multiprocessing as mp
+from typing import Dict, Set, Any
+
 class coex_matrix:
     def __init__(self, dico:dict[str, dict[str, float]], unique_words:list[str]):
         self.dico = dico
@@ -93,6 +96,67 @@ def words_coexistence_probability(corpus:dict[int, str]) -> pd.DataFrame:
     word_coexistence = pd.DataFrame(word_coexistence, index=unique_words, columns=unique_words)
     return word_coexistence
 
+
+
+def process_word(args: tuple) -> tuple:
+    """
+    Worker function to compute coexistence probabilities for a single word.
+    """
+    word2, thresh_prob = args
+    global word_presence, unique_words, word_counts
+    entries = {}
+    for word1 in unique_words:
+        # Calculate intersection
+        inter = len(word_presence[word1].intersection(word_presence[word2]))
+        if inter > 0:
+            # Calculate union using precomputed lengths
+            len1 = word_counts[word1]
+            len2 = word_counts[word2]
+            union = len1 + len2 - inter
+            prob = inter / max(union, 1)
+            if prob > thresh_prob:
+                entries[word1] = prob
+    return (word2, entries)
+
+def init_worker(shared_word_presence: Dict[str, Set[int]], 
+                shared_unique_words: list, 
+                shared_word_counts: Dict[str, int]):
+    """
+    Initializer function for worker processes to set up global variables.
+    """
+    global word_presence, unique_words, word_counts
+    word_presence = shared_word_presence
+    unique_words = shared_unique_words
+    word_counts = shared_word_counts
+
+def words_coexistence_probability_compact_parallel(corpus: Dict[int, str], 
+                                                  thresh_prob: float = 0) -> pd.DataFrame:
+    """
+    Parallelized function to calculate the probability of coexistence of each pair of words.
+    """
+    # Precompute necessary data structures
+    word_presence = matrix_creation.get_word_presence(corpus)
+    unique_words = list(matrix_creation.get_unique_words(corpus))
+    word_counts = {word: len(docs) for word, docs in word_presence.items()}
+    
+    # Prepare arguments for each word
+    args_list = [(word, thresh_prob) for word in unique_words]
+    
+    # Create a pool of workers
+    with mp.Pool(
+        initializer=init_worker,
+        initargs=(word_presence, unique_words, word_counts)
+    ) as pool:
+        # Process each word in parallel with tqdm progress bar
+        results = list(tqdm(
+            pool.imap(process_word, args_list),
+            total=len(unique_words),
+            desc="Processing words"
+        ))
+    
+    # Merge results into the final dictionary
+    dico = {word2: entries for word2, entries in results}
+    return coex_matrix(dico, unique_words)
 
 def cosine_similarity(word1:str, word2:str, embeddings:pd.DataFrame) -> float:
     """
