@@ -130,7 +130,7 @@ def init_worker(shared_word_presence: Dict[str, Set[int]],
     word_counts = shared_word_counts
 
 def words_coexistence_probability_compact_parallel(corpus: Dict[int, str], 
-                                                  thresh_prob: float = 0) -> pd.DataFrame:
+                                                  thresh_prob: float = 0) -> coex_matrix:
     """
     Parallelized function to calculate the probability of coexistence of each pair of words.
     """
