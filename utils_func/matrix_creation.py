@@ -188,7 +188,9 @@ def get_nearest_neighbors(word:str, embeddings:pd.DataFrame, n_neighbors:int=5, 
     :param n_neighbors: int - the number of neighbors to get
     :return: list - a list with the nearest neighbors
     """
+    print('fitting Nearest Neighbors')
     neighbors = NearestNeighbors(n_neighbors=n_neighbors, metric=metric).fit(embeddings)
+    print('End of fitting Nearest Neighbors')
     return neighbors.kneighbors(embeddings.loc[word].values.reshape(1,-1))
 
 
@@ -198,9 +200,13 @@ def get_similarity_matrix(embeddings:pd.DataFrame, metric:str = 'euclidean', n_n
     :param embeddings: pd.DataFrame - a dataframe with the embeddings of each word
     :return: pd.DataFrame - a dataframe with the similarity score between all words
     """
-
-    neighbors = NearestNeighbors(n_neighbors=n_neighbors, metric=metric).fit(embeddings)
+    print('fitting Nearest Neighbors')
+    neighbors = NearestNeighbors(n_neighbors=n_neighbors, metric=metric, n_jobs = -1).fit(embeddings)
+    print('End of fitting Nearest Neighbors')
+    print('getting distances')
     distances, indices = neighbors.kneighbors(embeddings) # 
+    print('end of getting distances')
+    
     max_dist = np.max(distances)
     filled_mat= np.zeros((len(embeddings), len(embeddings)))
 
@@ -209,7 +215,7 @@ def get_similarity_matrix(embeddings:pd.DataFrame, metric:str = 'euclidean', n_n
             filled_mat[i, indices[i]] = 1-(distances[i]/max_dist)
             filled_mat[indices[i], i] = 1-(distances[i]/max_dist)
     else:
-        for i in range(len(embeddings)):
+        for i in tqdm(range(len(embeddings)), desc='filling matrix'):
             filled_mat[i, indices[i]] = 1-distances[i]
             filled_mat[indices[i], i] = 1-distances[i]
 
