@@ -204,10 +204,11 @@ def get_similarity_matrix(embeddings:pd.DataFrame, metric:str = 'euclidean', n_n
     neighbors = NearestNeighbors(n_neighbors=n_neighbors, metric=metric, n_jobs = -1).fit(embeddings)
     print('End of fitting Nearest Neighbors')
     print('getting distances')
-    distances, indices = neighbors.kneighbors(embeddings) # 
+    distances, indices = neighbors.kneighbors(embeddings)  
     print('end of getting distances')
     
     max_dist = np.max(distances)
+
     filled_mat= np.zeros((len(embeddings), len(embeddings)))
 
     if metric == 'euclidean':
@@ -222,4 +223,41 @@ def get_similarity_matrix(embeddings:pd.DataFrame, metric:str = 'euclidean', n_n
     similarity_matrix = pd.DataFrame(filled_mat, index=embeddings.index, columns=embeddings.index)
 
     return similarity_matrix
+
+def get_similirity_matrix_compact(embeddings:pd.DataFrame, metric:str = 'euclidean', n_neighbors:int = 5) -> coex_matrix:
+    """
+    Function to calculate the similarity matrix between all words
+    :param embeddings: pd.DataFrame - a dataframe with the embeddings of each word
+    :return: coex_matrix - a compact matrix with the similarity score between all words
+    """    
+    print('fitting Nearest Neighbors')
+    neighbors = NearestNeighbors(n_neighbors=n_neighbors, metric=metric, n_jobs = -1).fit(embeddings)
+    print('End of fitting Nearest Neighbors')
+    print('getting distances')
+    distances, indices = neighbors.kneighbors(embeddings)  
+    print('end of getting distances')
+
+    max_dist = np.max(distances)
+
+    unique_words = list(embeddings.index)
+    dico = {i:dict() for i in unique_words}
+  
+    if metric == 'euclidean':
+        for i in tqdm(range(len(unique_words)), desc='filling similarity matrix'):
+            dico[unique_words[i]].update({unique_words[idx_word]:1-(dist/max_dist) for idx_word, dist in zip(indices[i], distances[i])})
+
+            for j in list(dico[unique_words[i]].keys()):
+                dico[j][unique_words[i]] = dico[unique_words[i]][j]
+
+    else:
+        for i in tqdm(range(len(unique_words)), desc='filling similarity matrix'):
+            
+            dico[unique_words[i]].update({unique_words[idx_word]:1-dist for idx_word, dist in zip(indices[i], distances[i])})
+            for j in list(dico[unique_words[i]].keys()):
+                if unique_words[i] != j:
+                    dico[j][unique_words[i]] = dico[unique_words[i]][j]
+
+
+    return coex_matrix(dico, unique_words)
+
 

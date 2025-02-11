@@ -203,7 +203,19 @@ def worker_replaceable(word: str) -> tuple[str, set[str]]:
     """
     # Check which method to use based on the type of coexistence matrix.
     # (Assumes matrix_creation.coex_matrix is a custom type.)
-    if isinstance(global_coex_matrix, matrix_creation.coex_matrix):
+    if isinstance(global_coex_matrix, matrix_creation.coex_matrix) and isinstance(global_similarity_matrix, matrix_creation.coex_matrix):
+        # Use pandas Series.multiply and DataFrame.add methods.
+        # Note: We use .loc[word] for both matrices.
+        temp = global_similarity_matrix.loc(word).multiply(global_alpha).add(
+            global_coex_matrix.loc(word).multiply(1 - global_alpha), fill_value=0
+        )
+    elif isinstance(global_similarity_matrix, matrix_creation.coex_matrix):
+        # Use pandas Series.multiply and DataFrame.add methods.
+        # Note: We use .loc[word] for both matrices.
+        temp = global_similarity_matrix.loc(word).multiply(global_alpha).add(
+            global_coex_matrix.loc[word].multiply(1 - global_alpha), fill_value=0
+        )
+    elif isinstance(global_coex_matrix, matrix_creation.coex_matrix):
         # Use pandas Series.multiply and DataFrame.add methods.
         # Note: We use .loc[word] for both matrices.
         temp = global_similarity_matrix.loc[word].multiply(global_alpha).add(

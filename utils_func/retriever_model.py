@@ -57,7 +57,10 @@ class FullRetriever:
 
     words_in_common = list(set(self.coexistence_matrix.columns).intersection(set(self.embeddings.index)))
     self.embeddings = self.embeddings.loc[words_in_common]
-    self.sim_mat = matrix_creation.get_similarity_matrix(self.embeddings, metric=self.metric, n_neighbors=self.n_neighbors)
+    if self.compact_matrix:
+      self.sim_mat = matrix_creation.get_similirity_matrix_compact(self.embeddings, metric=self.metric, n_neighbors=self.n_neighbors)
+    else:
+      self.sim_mat = matrix_creation.get_similarity_matrix(self.embeddings, metric=self.metric, n_neighbors=self.n_neighbors)
 
     replaceable_words = clustering.get_replaceable_words(self.sim_mat, self.coexistence_matrix, alpha=self.alpha, thresh=self.thresh)
 
