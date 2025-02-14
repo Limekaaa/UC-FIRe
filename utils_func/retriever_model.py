@@ -79,7 +79,7 @@ class FullRetriever:
     else:
       self.cleaned_corpus = corpus
 
-    replaceable_words = matrix_creation.get_replaceble_words_end2end(self.cleaned_corpus, self.embeddings, self.thresh_prob, self.metric, self.n_neighbors, self.alpha, self.thresh)
+    replaceable_words = matrix_creation.get_replaceable_words_end2end(self.cleaned_corpus, self.embeddings, self.thresh_prob, self.metric, self.n_neighbors, self.alpha, self.thresh)
     
     word_graph = clustering.Graph(replaceable_words)
     self.clusters = word_graph.find_all_cycles()
