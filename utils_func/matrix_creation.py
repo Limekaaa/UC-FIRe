@@ -261,3 +261,109 @@ def get_similirity_matrix_compact(embeddings:pd.DataFrame, metric:str = 'euclide
     return coex_matrix(dico, unique_words)
 
 
+def add_update_dict(base_dict, dict2):
+    base_keys = set(base_dict.keys())
+    l_base_keys = len(base_keys)
+    for key in list(dict2.keys()):
+        base_keys.add(key)
+        if len(base_keys) > l_base_keys:
+            l_base_keys +=1
+            base_dict[key] = dict2[key]
+        else:
+            base_dict[key] += dict2[key]
+
+def get_replaceable_words_end2end(corpus: Dict[int, str], embeddings:pd.DataFrame, thresh_prob: float = 0.0, metric:str = 'euclidean', n_neighbors:int = 5, alpha: float = 0.5, thresh: float = 0.8) -> dict[str, set[str]]:
+    """
+    Function to calculate the replaceable words in one function. It reduces the memory cost.
+    :param corpus: dict[int, str] - a dictionary with the key being the document id and the value being the document text
+    :param embeddings: pd.DataFrame - a dataframe with the embeddings of each word
+    :param thresh_prob: float - coexistence probabilities that are below the threshold are considered as 0. Used to reduce memory consumption
+    :param metric: str - metric of the similarity
+    :param n_neighbors: int - number of neighbors to find
+    """
+
+    ret_matrix = words_coexistence_probability_compact_parallel(corpus, thresh_prob)
+
+    words_in_common = list(set(ret_matrix.columns).intersection(set(embeddings.index)))
+    embeddings = embeddings.loc[words_in_common]
+    ret_matrix = ret_matrix.dico
+
+    print('fitting Nearest Neighbors')
+    neighbors = NearestNeighbors(n_neighbors=n_neighbors, metric=metric, n_jobs = -1).fit(embeddings)
+    print('End of fitting Nearest Neighbors')
+    print('getting distances')
+    distances, indices = neighbors.kneighbors(embeddings)  
+    print('end of getting distances')
+
+    max_dist = np.max(distances)
+    unique_words = list(embeddings.index)
+    seen_couples = set()
+    if metric == 'euclidean':
+        for i in tqdm(range(len(unique_words)), desc='filling with similarity'):
+            words_connected_to_ith_word = set(ret_matrix[unique_words[i]].keys())
+
+            for idx_word, dist in zip(indices[i], distances[i]):
+                word = unique_words[idx_word]
+                dist = 1-(dist/max_dist)
+                words_connected_to_ith_word -= word
+                if word in ret_matrix[unique_words[i]].keys():
+                    res = ret_matrix[unique_words[i]][word] * (1-alpha) + alpha * dist
+                    if res > thresh:
+                        ret_matrix[unique_words[i]][word] = res
+                    else:
+                        ret_matrix[unique_words[i]].pop(word)
+
+                else:
+                    res = alpha * dist
+                    if res > thresh:
+                        ret_matrix[unique_words[i]][word] = res
+
+            for word in words_connected_to_ith_word:
+                res = (1-alpha) * ret_matrix[unique_words[i]][word]
+                if res > thresh:
+                    ret_matrix[unique_words[i]][word] = thresh
+                else:
+                    ret_matrix[unique_words[i]].pop(word)
+    else:
+        for i in tqdm(range(len(unique_words)), desc='filling with similarity'):
+            words_connected_to_ith_word = set(ret_matrix[unique_words[i]].keys())
+            for idx_word, dist in zip(indices[i], distances[i]):
+                word = unique_words[idx_word]
+                words_connected_to_ith_word -= {word}
+                dist = 1-dist
+                seen_couples.add((unique_words[i], word))
+
+                if word in ret_matrix[unique_words[i]].keys():
+                    if (word, unique_words[i]) in seen_couples:
+                        if unique_words[i] in ret_matrix[word].keys():
+                            ret_matrix[unique_words[i]][word] = ret_matrix[word][unique_words[i]]
+                        else:
+                            ret_matrix[unique_words[i]].pop(word)
+                    else:
+                        res = ret_matrix[unique_words[i]][word] * (1-alpha) + alpha * dist 
+                        if res > thresh:
+                            ret_matrix[unique_words[i]][word] = res
+                        else:
+                            ret_matrix[unique_words[i]].pop(word)
+                else:
+                    if (word, unique_words[i]) in seen_couples:
+                        if unique_words[i] in ret_matrix[word].keys():
+                            ret_matrix[unique_words[i]][word] = ret_matrix[word][unique_words[i]]
+                    else:
+                        res = alpha * dist
+                        if res > thresh:
+                            ret_matrix[unique_words[i]][word] = res
+
+            for word in words_connected_to_ith_word:
+                res = (1-alpha) * ret_matrix[unique_words[i]][word]
+                if res > thresh:
+                    ret_matrix[unique_words[i]][word] = thresh
+                else:
+                    ret_matrix[unique_words[i]].pop(word)
+
+    
+    ret_matrix_keys = list(ret_matrix.keys())
+    for key in tqdm(ret_matrix_keys, desc = 'Finalizing replaceble words'):
+        ret_matrix[key] = set(ret_matrix[key].keys())
+    
+    return ret_matrix
