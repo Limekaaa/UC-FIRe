@@ -133,7 +133,7 @@ def clusters_dict(clusters:list[set[str]]) -> dict[str:str]:
     to_ret = {}
     unique_words = {word for cluster in clusters for word in cluster}
     clust_names = list(range(len(clusters)))
-    for cluster  in clusters:
+    for cluster  in tqdm(clusters, desc= 'Creating clusters dict'):
         for word in cluster:
             to_ret[word] = clust_names[clusters.index(cluster)]
     return to_ret

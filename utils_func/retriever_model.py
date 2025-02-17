@@ -63,10 +63,12 @@ class FullRetriever:
       self.sim_mat = matrix_creation.get_similarity_matrix(self.embeddings, metric=self.metric, n_neighbors=self.n_neighbors)
 
     replaceable_words = clustering.get_replaceable_words(self.sim_mat, self.coexistence_matrix, alpha=self.alpha, thresh=self.thresh)
-    replaceable_words = replaceable_words
+    
     
     word_graph = clustering.Graph(replaceable_words)
+    print('finding cycles...')
     self.clusters = word_graph.find_all_cycles()
+    print('end of finding cycles')
     self.clust_dict = clustering.clusters_dict(self.clusters)
 
     self.rewritten_corpus = clustering.rewrite_corpus(self.cleaned_corpus, self.clust_dict)
@@ -79,6 +81,7 @@ class FullRetriever:
     else:
       self.cleaned_corpus = corpus
 
+    #replaceable_words = matrix_creation.get_replaceable_words_end2end(self.cleaned_corpus, self.embeddings, self.thresh_prob, self.metric, self.n_neighbors, self.alpha, self.thresh)
     replaceable_words = matrix_creation.get_replaceable_words_end2end(self.cleaned_corpus, self.embeddings, self.thresh_prob, self.metric, self.n_neighbors, self.alpha, self.thresh)
     
     word_graph = clustering.Graph(replaceable_words)
