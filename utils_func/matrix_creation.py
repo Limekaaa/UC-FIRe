@@ -317,6 +317,7 @@ def get_replaceable_words_end2end(corpus: Dict[int, str], embeddings:pd.DataFram
                 word = unique_words[idx_word]
                 dist = (1-dist) * alpha
                 seen_couples.add((unique_words[i],word))
+
                 if (word, unique_words[i]) in seen_couples:
                     if unique_words[i] in ret_matrix[word].keys():
                         ret_matrix[unique_words[i]][word] = ret_matrix[word][unique_words[i]]
@@ -328,9 +329,16 @@ def get_replaceable_words_end2end(corpus: Dict[int, str], embeddings:pd.DataFram
                         ret_matrix[unique_words[i]][word] += dist
                         if ret_matrix[unique_words[i]][word] <= thresh:
                             ret_matrix[unique_words[i]].pop(word)
+                        elif unique_words.index(word) < i:
+                            ret_matrix[word][unique_words[i]] = ret_matrix[unique_words[i]][word]
+
                     else:
                         if dist > thresh:
                             ret_matrix[unique_words[i]][word] = dist
+                            if unique_words.index(word) < i:
+                                ret_matrix[word][unique_words[i]] = dist
+                    
+
 
     ret_matrix = {key:{key2:ret_matrix[key][key2] for key2 in list(ret_matrix[key].keys()) if ret_matrix[key][key2] > thresh} for key in tqdm(list(ret_matrix.keys()), desc='Finalizing the matrix')}
 
