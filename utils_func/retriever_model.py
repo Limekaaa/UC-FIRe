@@ -7,7 +7,7 @@ import pandas as pd
 class Retriever:
   def __init__(self, corpus:dict[str, str], clusters_dict:dict[str,str] = {}, k1:float=0.9, b:float=0.4):
     cleaned_corpus = corpus
-    self.tokenized_corpus = [cleaned_corpus[key].split(" ") for key in corpus.keys()]
+    self.tokenized_corpus = [cleaned_corpus[key].split() for key in corpus.keys()]
     self.bm25_model = BM25Okapi(self.tokenized_corpus, k1=k1, b=b)    
     self.keys = list(corpus.keys())
     self.clusters_dict = clusters_dict
@@ -20,7 +20,7 @@ class Retriever:
         #cleaned_query = preprocess_corpus([query])
         cleaned_query = corpus_processing.clean_tokens(corpus_processing.nlp(query.lower()))
         cleaned_query = clustering.rewrite_text(cleaned_query, self.clusters_dict)
-        tokenized_query = cleaned_query.split(" ")
+        tokenized_query = cleaned_query.split()
         # Apply BM25 to get scores
         scores = self.bm25_model.get_scores(tokenized_query)
         # Sort the scores in descending order and save the results

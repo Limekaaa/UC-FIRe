@@ -164,7 +164,7 @@ def rewrite_corpus(corpus:dict[str,str], clust_dict:dict[str,str]) -> dict[str,s
     :param clust_dict: The dictionary containing for each word, the cluster it belongs to.\n
     :return: The rewritten corpus.
     """
-    to_ret = {key:rewrite_text(corpus[key], clust_dict) for key in tqdm(corpus.keys())}
+    to_ret = {key:rewrite_text(corpus[key], clust_dict) for key in tqdm(corpus.keys(), desc='Rewriting corpus')}
 
     return to_ret
 
