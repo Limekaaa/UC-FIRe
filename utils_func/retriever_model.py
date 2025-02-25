@@ -3,14 +3,17 @@ from utils_func import corpus_processing, clustering, matrix_creation
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
+import fasttext
 
 class Retriever:
-  def __init__(self, corpus:dict[str, str], clusters_dict:dict[str,str] = {}, k1:float=0.9, b:float=0.4):
+  def __init__(self, corpus:dict[str, str], fasttext_model, clusters_dict:dict[str,str] = {}, thresh:float = 0.75,k1:float=0.9, b:float=0.4):
     cleaned_corpus = corpus
     self.tokenized_corpus = [cleaned_corpus[key].split() for key in corpus.keys()]
     self.bm25_model = BM25Okapi(self.tokenized_corpus, k1=k1, b=b)    
     self.keys = list(corpus.keys())
     self.clusters_dict = clusters_dict
+    self.fasttext_model = fasttext_model
+    self.thresh = thresh
 
 
   def search(self, corpus: dict[str, dict[str, str]], queries: dict[str, str], top_k: int, score_function,**kwargs) -> dict[str, dict[str, float]]:
@@ -19,7 +22,7 @@ class Retriever:
         # Process the query
         #cleaned_query = preprocess_corpus([query])
         cleaned_query = corpus_processing.clean_tokens(corpus_processing.nlp(query.lower()))
-        cleaned_query = clustering.rewrite_text(cleaned_query, self.clusters_dict)
+        cleaned_query = clustering.rewrite_text(cleaned_query, self.clusters_dict, self.fasttext_model, thresh = self.thresh)
         tokenized_query = cleaned_query.split()
         # Apply BM25 to get scores
         scores = self.bm25_model.get_scores(tokenized_query)
@@ -30,7 +33,7 @@ class Retriever:
     return results
 
 class FullRetriever:
-  def __init__(self, embeddings:pd.DataFrame, n_neighbors = 20, alpha:float=0.5, thresh = 0.8, metric = 'cosine', k1:float = 0.9, b:float = 0.4,coexistence_matrix:pd.DataFrame = None, thresh_prob = 0, compact_matrix = False):
+  def __init__(self, embeddings:pd.DataFrame, fasttext_model,n_neighbors = 20, alpha:float=0.5, thresh = 0.8, metric = 'cosine', k1:float = 0.9, b:float = 0.4,coexistence_matrix:pd.DataFrame = None, thresh_prob = 0, compact_matrix = False):
     self.n_neighbors = n_neighbors
     self.alpha = alpha
     self.thresh = thresh
@@ -42,6 +45,7 @@ class FullRetriever:
     self.cleaned_corpus = None
     self.thresh_prob = thresh_prob
     self.compact_matrix = compact_matrix
+    self.fasttext_model = fasttext_model
 
 
   def fit(self, corpus:dict[str, str], is_clean = False):
@@ -72,7 +76,7 @@ class FullRetriever:
     self.clust_dict = clustering.clusters_dict(self.clusters)
 
     self.rewritten_corpus = clustering.rewrite_corpus(self.cleaned_corpus, self.clust_dict)
-    self.retriever = Retriever(self.rewritten_corpus, self.clust_dict, k1=self.k1, b=self.b)
+    self.retriever = Retriever(self.rewritten_corpus, self.fasttext_model, self.clust_dict, k1=self.k1, b=self.b, thresh=self.thresh)
     self.tokenized_corpus = self.retriever.tokenized_corpus
 
   def fit_cheaper(self, corpus, is_clean = False):
@@ -89,7 +93,7 @@ class FullRetriever:
     self.clust_dict = clustering.clusters_dict(self.clusters)
 
     self.rewritten_corpus = clustering.rewrite_corpus(self.cleaned_corpus, self.clust_dict)
-    self.retriever = Retriever(self.rewritten_corpus, self.clust_dict, k1=self.k1, b=self.b)
+    self.retriever = Retriever(self.rewritten_corpus, self.fasttext_model, self.clust_dict, k1=self.k1, b=self.b)
     self.tokenized_corpus = self.retriever.tokenized_corpus
 
   def search(self, corpus: dict[str, dict[str, str]], queries: dict[str, str], top_k: int, score_function,**kwargs) -> dict[str, dict[str, float]]:

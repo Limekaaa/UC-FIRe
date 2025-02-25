@@ -5,6 +5,8 @@ from utils_func import matrix_creation
 import multiprocessing as mp
 from typing import Dict, Set, Any
 
+import fasttext
+
 class Graph:
     def __init__(self, graph_dict=None):
         if graph_dict is None:
@@ -138,7 +140,7 @@ def clusters_dict(clusters:list[set[str]]) -> dict[str:str]:
             to_ret[word] = clust_names[clusters.index(cluster)]
     return to_ret
 
-def rewrite_text(text:str, clust_dict:dict[str,str]) -> str:
+def rewrite_text(text:str, clust_dict:dict[str,str], fasttext_model: fasttext.FastText = None, thresh=0.75) -> str:
     """
     Rewrite the text using the clusters dictionary.\n
     :param text: The text to rewrite.\n
@@ -155,6 +157,27 @@ def rewrite_text(text:str, clust_dict:dict[str,str]) -> str:
             to_ret.append(str(clust_dict[text[i]]))
         else:
             words = set(clust_dict.keys())
+            if fasttext_model is not None:
+                neighs = fasttext_model.get_nearest_neighbors(text[i], k=500)
+                neighs = [(i[0], clust_dict[i[1]]) for i in neighs if i[1] in clust_dict.keys() and i[0]>thresh]
+                diff_clust = [i[1] for i in neighs]
+       
+                if neighs != []:
+                    dico_clust = dict()
+                    for sim, clust in neighs:
+                        if clust in dico_clust.keys():
+                            dico_clust[clust] += sim
+                        else: 
+                            dico_clust[clust] = sim
+                    
+                    dico_clust = {key:dico_clust[key]/diff_clust.count(key) for key in list(dico_clust.keys())}
+                    best_key = list(dico_clust.keys())[0]
+                    for key in list(dico_clust.keys()):
+                        if dico_clust[key] > dico_clust[best_key]:
+                            best_key = key
+                    
+                    to_ret.append(str(best_key))
+
     return ' '.join(to_ret)
 
 def rewrite_corpus(corpus:dict[str,str], clust_dict:dict[str,str]) -> dict[str,str]:
