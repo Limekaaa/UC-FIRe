@@ -4,6 +4,8 @@ from utils_func import matrix_creation
 
 import multiprocessing as mp
 from typing import Dict, Set, Any
+from scipy.sparse import csc_matrix
+import numpy as np
 
 class Graph:
     def __init__(self, graph_dict=None):
@@ -101,6 +103,8 @@ class Graph:
             res += str(edge) + " "
         return res
 
+
+ 
 '''
 def get_replaceable_words(similarity_matrix:pd.DataFrame, coexistence_matrix:pd.DataFrame, alpha = 0.5, thresh = 0.8) -> dict[str, set[str]]:
     """
@@ -169,9 +173,35 @@ def rewrite_corpus(corpus:dict[str,str], clust_dict:dict[str,str]) -> dict[str,s
     return to_ret
 
 
+def get_replaceable_words(corpus, embeddings, thresh_prob, metric, n_neighbors, alpha, thresh) -> dict[str, set[str]]:
+    """
+    Get for each word, the set of words that can replace it in a sentence according to the constraints on similarity and coexistence matrix.\n
+    :param similarity_matrix: A pandas DataFrame containing the similarity matrix between words.\n
+    :param coexistence_matrix: A pandas DataFrame containing the coexistence matrix between words.\n
+    :param alpha: A float between 0 and 1, the weight of the similarity matrix in the final decision.\n
+    :param thresh: A float between 0 and 1, the threshold to consider a word as a possible replacement.\n
+    :return: A dictionary containing for each word, the set of words that can replace it in a sentence.
+    """
+    unique_words = matrix_creation.get_unique_words(corpus)
+    embeddings = embeddings.loc[list(unique_words)]
+    words = np.array(list(embeddings.index))
 
+    similarity_matrix = matrix_creation.get_similarity_matrix(embeddings, metric=metric, n_neighbors=n_neighbors)
+    coexistence_matrix = matrix_creation.words_coexistence_probability_compact_parallel(corpus, list(embeddings.index),thresh_prob=thresh_prob)
 
+    #all_words = list(set(similarity_matrix.index).intersection(set(coexistence_matrix.index)))
+    #to_ret = {}
+    
+    to_ret = similarity_matrix * alpha + coexistence_matrix * (1-alpha)
+    to_ret.data[to_ret.data <= thresh] = 0
+    to_ret.eliminate_zeros()
 
+    to_ret = {words[word]: set(list(words[to_ret[word].nonzero()[1]])) for word in tqdm(range(len(words)), desc='Getting replaceable words')}
+
+            
+    return to_ret
+
+'''
 ###################################################################################################################
 # Parallelization
 
@@ -259,3 +289,4 @@ def get_replaceable_words(similarity_matrix: pd.DataFrame,
             results[word] = replacements
 
     return results
+'''
