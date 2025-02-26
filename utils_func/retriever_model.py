@@ -86,14 +86,16 @@ class FullRetriever:
       self.cleaned_corpus = corpus
 
     #replaceable_words = matrix_creation.get_replaceable_words_end2end(self.cleaned_corpus, self.embeddings, self.thresh_prob, self.metric, self.n_neighbors, self.alpha, self.thresh)
-    replaceable_words = matrix_creation.get_replaceable_words_end2end(self.cleaned_corpus, self.embeddings, self.thresh_prob, self.metric, self.n_neighbors, self.alpha, self.thresh)
+    replaceable_words = clustering.get_replaceable_words(self.cleaned_corpus, self.embeddings, self.thresh_prob, self.metric, self.n_neighbors, self.alpha, self.thresh)
     
     word_graph = clustering.Graph(replaceable_words)
+    print('finding cycles...')
     self.clusters = word_graph.find_all_cycles()
+    print('end of finding cycles')
     self.clust_dict = clustering.clusters_dict(self.clusters)
 
     self.rewritten_corpus = clustering.rewrite_corpus(self.cleaned_corpus, self.clust_dict)
-    self.retriever = Retriever(self.rewritten_corpus, self.fasttext_model, self.clust_dict, k1=self.k1, b=self.b)
+    self.retriever = Retriever(self.rewritten_corpus, self.fasttext_model,self.clust_dict, k1=self.k1, b=self.b)
     self.tokenized_corpus = self.retriever.tokenized_corpus
 
   def search(self, corpus: dict[str, dict[str, str]], queries: dict[str, str], top_k: int, score_function,**kwargs) -> dict[str, dict[str, float]]:
