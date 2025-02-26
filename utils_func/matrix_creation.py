@@ -4,40 +4,12 @@ from tqdm import tqdm
 from sklearn.neighbors import NearestNeighbors
 
 import multiprocessing as mp
+from multiprocessing import Pool
+
 from typing import Dict, Set, Any
 
 from scipy.sparse import csc_matrix, lil_matrix
 import os
-
-class coex_matrix:
-    def __init__(self, dico:dict[str, dict[str, float]], unique_words:list[str]):
-        self.dico = dico
-        self.index = unique_words
-        self.columns = unique_words
-    def __getitem__(self, key:str):
-        return self.dico[key]
-
-    '''
-    def loc(self, word):
-        temp = np.zeros(len(self.index))
-        for i in list(self.dico[word].keys()):
-            temp[self.index.index(i)] = self.dico[word][i]
-        return pd.Series(temp, index=self.index)
-    '''
-
-    def loc(self, word):
-        index = list(self.dico[word].keys())
-        vals = [self.dico[word][i] for i in index]
-
-        return pd.Series(vals, index=index)
-
-'''
-row = np.array([0, 2, 2, 0, 1, 2])
-col = np.array([0, 0, 1, 2, 2, 2])
-data = np.array([1, 2, 3, 4, 5, 6])
-csc_matrix((data, (row, col)), shape=(3, 3)).toarray()
-'''
-
 
 
 def get_unique_words(corpus:dict[int, str]) -> set:
@@ -120,89 +92,6 @@ def words_coexistence_probability(corpus:dict[int, str]) -> pd.DataFrame:
     return word_coexistence
 
 
-
-def process_word(args: tuple) -> tuple:
-    """
-    Worker function to compute coexistence probabilities for a single word.
-    """
-    word2, thresh_prob = args
-    global word_presence, unique_words, word_counts
-    entries = {}
-    for word1 in unique_words:
-        # Calculate intersection
-        inter = len(word_presence[word1].intersection(word_presence[word2]))
-        if inter > 0:
-            # Calculate union using precomputed lengths
-            len1 = word_counts[word1]
-            len2 = word_counts[word2]
-            union = len1 + len2 - inter
-            prob = inter / max(union, 1)
-            if prob > thresh_prob:
-                entries[word1] = prob
-    return (word2, entries)
-
-def init_worker(shared_word_presence: Dict[str, Set[int]], 
-                shared_unique_words: list, 
-                shared_word_counts: Dict[str, int]):
-    """
-    Initializer function for worker processes to set up global variables.
-    """
-    global word_presence, unique_words, word_counts
-    word_presence = shared_word_presence
-    unique_words = shared_unique_words
-    word_counts = shared_word_counts
-
-def words_coexistence_probability_compact_parallel(corpus: Dict[int, str], 
-                                                  thresh_prob: float = 0.0) -> coex_matrix:
-    """
-    Parallelized function to calculate the probability of coexistence of each pair of words.
-    """
-    # Precompute necessary data structures
-    word_presence = get_word_presence(corpus)
-    unique_words = list(get_unique_words(corpus))
-    word_counts = {word: len(docs) for word, docs in word_presence.items()}
-    
-    # Prepare arguments for each word
-    args_list = [(word, thresh_prob) for word in unique_words]
-    
-    # Create a pool of workers
-    with mp.Pool(
-        initializer=init_worker,
-        initargs=(word_presence, unique_words, word_counts)
-    ) as pool:
-        # Process each word in parallel with tqdm progress bar
-        results = list(tqdm(
-            pool.imap(process_word, args_list),
-            total=len(unique_words),
-            desc="Processing words"
-        ))
-    
-    # Merge results into the final dictionary
-    dico = {word2: entries for word2, entries in results}
-    return coex_matrix(dico, unique_words)
-
-def cosine_similarity(word1:str, word2:str, embeddings:pd.DataFrame) -> float:
-    """
-    Function to calculate the similarity score between two words
-    :param word1: str - the first word
-    :param word2: str - the second word
-    :param embeddings: pd.DataFrame - a dataframe with the embeddings of each word
-    :return: float - the similarity score between the two words
-    """
-
-    return np.dot(embeddings.loc[word1], embeddings.loc[word2])/(np.linalg.norm(embeddings.loc[word1])*np.linalg.norm(embeddings.loc[word2]))
-
-def distance(word1:str, word2:str, embeddings:pd.DataFrame) -> float:
-    """
-    Function to calculate the distance between two words
-    :param word1: str - the first word
-    :param word2: str - the second word
-    :param embeddings: pd.DataFrame - a dataframe with the embeddings of each word
-    :return: float - the distance between the two words
-    """
-    return np.linalg.norm(embeddings.loc[word1] - embeddings.loc[word2])
-
-
 def get_nearest_neighbors(word:str, embeddings:pd.DataFrame, n_neighbors:int=5, metric = 'cosine') -> list:
     """
     Function to get the nearest neighbors of a word
@@ -246,43 +135,6 @@ def get_similarity_matrix(embeddings:pd.DataFrame, metric:str = 'euclidean', n_n
     filled_mat = filled_mat.tocsc()
 
     return filled_mat
-
-def get_similirity_matrix_compact(embeddings:pd.DataFrame, metric:str = 'euclidean', n_neighbors:int = 5) -> coex_matrix:
-    """
-    Function to calculate the similarity matrix between all words
-    :param embeddings: pd.DataFrame - a dataframe with the embeddings of each word
-    :return: coex_matrix - a compact matrix with the similarity score between all words
-    """    
-    print('fitting Nearest Neighbors')
-    neighbors = NearestNeighbors(n_neighbors=n_neighbors, metric=metric, n_jobs = -1).fit(embeddings)
-    print('End of fitting Nearest Neighbors')
-    print('getting distances')
-    distances, indices = neighbors.kneighbors(embeddings)  
-    print('end of getting distances')
-
-    max_dist = np.max(distances)
-
-    unique_words = list(embeddings.index)
-    dico = {i:dict() for i in unique_words}
-  
-    if metric == 'euclidean':
-        for i in tqdm(range(len(unique_words)), desc='filling similarity matrix'):
-            dico[unique_words[i]].update({unique_words[idx_word]:1-(dist/max_dist) for idx_word, dist in zip(indices[i], distances[i])})
-
-            for j in list(dico[unique_words[i]].keys()):
-                dico[j][unique_words[i]] = dico[unique_words[i]][j]
-
-    else:
-        for i in tqdm(range(len(unique_words)), desc='filling similarity matrix'):
-            
-            dico[unique_words[i]].update({unique_words[idx_word]:1-dist for idx_word, dist in zip(indices[i], distances[i])})
-            for j in list(dico[unique_words[i]].keys()):
-                if unique_words[i] != j:
-                    dico[j][unique_words[i]] = dico[unique_words[i]][j]
-
-
-    return coex_matrix(dico, unique_words)
-
 
 def get_replaceable_words_end2end(corpus: Dict[int, str], embeddings:pd.DataFrame, thresh_prob: float = 0.0, metric:str = 'euclidean', n_neighbors:int = 5, alpha: float = 0.5, thresh: float = 0.8) -> dict[str, set[str]]:
     """
@@ -378,22 +230,7 @@ def get_replaceable_words_end2end(corpus: Dict[int, str], embeddings:pd.DataFram
     return ret_matrix
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-from multiprocessing import Pool
-from tqdm import tqdm
-from scipy.sparse import csc_matrix
+# coexistence probability calculation in parallel ______________________________________________________________________________________________________________________________
 
 # Worker initializer to set globals in each process.
 def init_worker(shared_word_presence, shared_unique_words, shared_thresh_prob):

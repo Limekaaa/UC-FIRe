@@ -7,6 +7,9 @@ from typing import Dict, Set, Any
 from scipy.sparse import csc_matrix
 import numpy as np
 
+from multiprocessing import Pool
+from functools import partial
+
 class Graph:
     def __init__(self, graph_dict=None):
         if graph_dict is None:
@@ -161,6 +164,7 @@ def rewrite_text(text:str, clust_dict:dict[str,str]) -> str:
             words = set(clust_dict.keys())
     return ' '.join(to_ret)
 
+'''
 def rewrite_corpus(corpus:dict[str,str], clust_dict:dict[str,str]) -> dict[str,str]:
     """
     Rewrite the corpus using the clusters dictionary.\n
@@ -171,6 +175,33 @@ def rewrite_corpus(corpus:dict[str,str], clust_dict:dict[str,str]) -> dict[str,s
     to_ret = {key:rewrite_text(corpus[key], clust_dict) for key in tqdm(corpus.keys(), desc='Rewriting corpus')}
 
     return to_ret
+'''
+
+
+def process_item(key_text: tuple[str, str], clust_dict: dict[str, str]) -> tuple[str, str]:
+    key, text = key_text
+    return (key, rewrite_text(text, clust_dict))
+
+def rewrite_corpus(corpus: dict[str, str], clust_dict: dict[str, str]) -> dict[str, str]:
+    """
+    Rewrite the corpus using the clusters dictionary in parallel.\n
+    :param corpus: The corpus to rewrite.\n
+    :param clust_dict: The dictionary containing for each word, the cluster it belongs to.\n
+    :return: The rewritten corpus with original insertion order preserved.
+    """
+
+    # Convert corpus to a list of (key, text) tuples to preserve order
+    items = list(corpus.items())
+    
+    # Create a pool of workers and process items in parallel
+    with Pool() as pool:
+        worker = partial(process_item, clust_dict=clust_dict)
+        # Use imap to preserve order and track progress with tqdm
+        results = pool.imap(worker, items, chunksize=100)
+        to_ret = {k: v for k, v in tqdm(results, total=len(items), desc='Rewriting corpus')}
+    
+    return to_ret
+
 
 
 def get_replaceable_words(corpus, embeddings, thresh_prob, metric, n_neighbors, alpha, thresh) -> dict[str, set[str]]:
