@@ -11,6 +11,7 @@ from scipy.sparse import csc_matrix
 import numpy as np
 
 from functools import partial
+from sklearn.neighbors import NearestNeighbors
 
 try:
     import fasttext
@@ -201,7 +202,7 @@ def clusters_dict(clusters: list[set[str]]) -> dict[str, int]:
     
     return merged
 
-def rewrite_text(text:str, clust_dict:dict[str,str], fasttext_model: fasttext.FastText = None, thresh=0.75) -> str:
+def rewrite_text(text:str, clust_dict:dict[str,str], fasttext_model: fasttext.FastText = None, thresh=0.75, neighbors = None) -> str:
     """
     Rewrite the text using the clusters dictionary.\n
     :param text: The text to rewrite.\n
@@ -223,6 +224,9 @@ def rewrite_text(text:str, clust_dict:dict[str,str], fasttext_model: fasttext.Fa
             if fasttext_model is not None:
                 neighs = fasttext_model.get_nearest_neighbors(text[i], k=500)
                 neighs = [(i[0], clust_dict[i[1]]) for i in neighs if i[1] in clust_dict.keys() and i[0]>thresh]
+
+                #neighs = neighbors.kneighbors(fasttext_model[text[i]].reshape(1,-1), return_distance=True)
+                #neighs = [(neighs[0][0][i], clust_dict[neighs[1][0][i]]) for i in range(len(neighs[0][0])) if neighs[0][0][i]>thresh] # neighs[1][0][i] in clust_dict.keys() and
                 diff_clust = [i[1] for i in neighs]
     
                 if neighs != []:
@@ -296,13 +300,24 @@ def get_replaceable_words(corpus, embeddings, thresh_prob, metric, n_neighbors, 
     embeddings = embeddings.loc[list(unique_words)]
     words = np.array(list(embeddings.index))
 
-    similarity_matrix = matrix_creation.get_similarity_matrix(embeddings, metric=metric, n_neighbors=n_neighbors)
-    coexistence_matrix = matrix_creation.words_coexistence_probability_compact_parallel(corpus, list(embeddings.index),thresh_prob=thresh_prob)
+    if alpha == 1:
+        similarity_matrix = matrix_creation.get_similarity_matrix(embeddings, metric=metric, n_neighbors=n_neighbors)
+    elif alpha == 0:
+        coexistence_matrix = matrix_creation.words_coexistence_probability_compact_parallel(corpus, list(embeddings.index),thresh_prob=thresh_prob)
+    else:
+        similarity_matrix = matrix_creation.get_similarity_matrix(embeddings, metric=metric, n_neighbors=n_neighbors)
+        coexistence_matrix = matrix_creation.words_coexistence_probability_compact_parallel(corpus, list(embeddings.index),thresh_prob=thresh_prob)
 
     #all_words = list(set(similarity_matrix.index).intersection(set(coexistence_matrix.index)))
     #to_ret = {}
-
-    to_ret = similarity_matrix * alpha + coexistence_matrix * (1-alpha)
+    
+    if alpha == 1:
+        to_ret = similarity_matrix
+    elif alpha == 0:
+        to_ret = coexistence_matrix
+    else:
+        to_ret = similarity_matrix * alpha + coexistence_matrix * (1-alpha)
+    
     to_ret.data[to_ret.data <= thresh] = 0
     to_ret.eliminate_zeros()
     to_ret = {words[word]: set(list(words[to_ret[word].nonzero()[1]])) for word in tqdm(range(len(words)), desc='Getting replaceable words')}
