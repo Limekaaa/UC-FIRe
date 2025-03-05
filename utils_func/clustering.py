@@ -286,7 +286,7 @@ def rewrite_corpus(corpus: dict[str, str], clust_dict: dict[str, str]) -> dict[s
 
     return to_ret
 
-def get_replaceable_words(corpus, embeddings, thresh_prob, metric, n_neighbors, alpha, thresh) -> dict[str, set[str]]:
+def get_replaceable_words(corpus, embeddings, thresh_prob, metric, n_neighbors, alpha, thresh, knn_method = 'exact') -> dict[str, set[str]]:
     """
     Get for each word, the set of words that can replace it in a sentence according to the constraints on similarity and coexistence matrix.\n
     :param similarity_matrix: A pandas DataFrame containing the similarity matrix between words.\n
@@ -301,11 +301,11 @@ def get_replaceable_words(corpus, embeddings, thresh_prob, metric, n_neighbors, 
     words = np.array(list(embeddings.index))
 
     if alpha == 1:
-        similarity_matrix = matrix_creation.get_similarity_matrix(embeddings, metric=metric, n_neighbors=n_neighbors)
+        similarity_matrix = matrix_creation.get_similarity_matrix(embeddings, metric=metric, n_neighbors=n_neighbors, method = knn_method)
     elif alpha == 0:
         coexistence_matrix = matrix_creation.words_coexistence_probability_compact_parallel(corpus, list(embeddings.index),thresh_prob=thresh_prob)
     else:
-        similarity_matrix = matrix_creation.get_similarity_matrix(embeddings, metric=metric, n_neighbors=n_neighbors)
+        similarity_matrix = matrix_creation.get_similarity_matrix(embeddings, metric=metric, n_neighbors=n_neighbors, method=knn_method)
         coexistence_matrix = matrix_creation.words_coexistence_probability_compact_parallel(corpus, list(embeddings.index),thresh_prob=thresh_prob)
 
     #all_words = list(set(similarity_matrix.index).intersection(set(coexistence_matrix.index)))

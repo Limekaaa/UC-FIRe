@@ -93,14 +93,14 @@ class FullRetriever:
     self.retriever = Retriever(self.rewritten_corpus, self.fasttext_model, self.clust_dict, k1=self.k1, b=self.b, thresh=self.thresh)
     self.tokenized_corpus = self.retriever.tokenized_corpus
 
-  def fit_cheaper(self, corpus, is_clean = False):
+  def fit_cheaper(self, corpus, is_clean = False, knn_method = 'exact'):
     if not is_clean:
       self.cleaned_corpus = corpus_processing.preprocess_corpus_dict(corpus)
     else:
       self.cleaned_corpus = corpus
 
     #replaceable_words = matrix_creation.get_replaceable_words_end2end(self.cleaned_corpus, self.embeddings, self.thresh_prob, self.metric, self.n_neighbors, self.alpha, self.thresh)
-    replaceable_words = clustering.get_replaceable_words(self.cleaned_corpus, self.embeddings, self.thresh_prob, self.metric, self.n_neighbors, self.alpha, self.thresh)
+    replaceable_words = clustering.get_replaceable_words(self.cleaned_corpus, self.embeddings, self.thresh_prob, self.metric, self.n_neighbors, self.alpha, self.thresh, knn_method)
 
     word_graph = clustering.Graph(replaceable_words)
     print('finding cycles...')

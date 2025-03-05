@@ -10,7 +10,7 @@ from typing import Dict, Set, Any
 
 from scipy.sparse import csc_matrix, lil_matrix
 import os
-
+import faiss
 
 def get_unique_words(corpus:dict[int, str]) -> set:
     """
@@ -106,19 +106,37 @@ def get_nearest_neighbors(word:str, embeddings:pd.DataFrame, n_neighbors:int=5, 
     return neighbors.kneighbors(embeddings.loc[word].values.reshape(1,-1))
 
 
-def get_similarity_matrix(embeddings:pd.DataFrame, metric:str = 'euclidean', n_neighbors:int = 5) -> csc_matrix:
+def get_similarity_matrix(embeddings:pd.DataFrame, metric:str = 'euclidean', n_neighbors:int = 5, method = 'exact') -> csc_matrix:
     """
     Function to calculate the similarity matrix between all words
     :param embeddings: pd.DataFrame - a dataframe with the embeddings of each word
     :return: pd.DataFrame - a dataframe with the similarity score between all words
     """
-    print('fitting Nearest Neighbors')
-    neighbors = NearestNeighbors(n_neighbors=n_neighbors, metric=metric, n_jobs = -1).fit(embeddings)
-    print('End of fitting Nearest Neighbors')
-    print('getting distances')
-    distances, indices = neighbors.kneighbors(embeddings)  
-    print('end of getting distances')
     
+    if method == 'exact':
+        print('fitting Nearest Neighbors')
+        neighbors = NearestNeighbors(n_neighbors=n_neighbors, metric=metric, n_jobs = -1).fit(embeddings)
+        print('End of fitting Nearest Neighbors')
+        print('getting distances')
+        distances, indices = neighbors.kneighbors(embeddings)  
+        print('end of getting distances')
+    else:
+        embeddings = np.array(embeddings, dtype=np.float32)
+        embeddings = np.ascontiguousarray(embeddings)
+        # Normalize the embeddings to unit length (for cosine similarity)
+        faiss.normalize_L2(embeddings)  # Normalize the embeddings in place
+
+        # Create a Faiss index for cosine similarity (using inner product)
+        index = faiss.IndexFlatIP(embeddings.shape[1])
+
+        # Add the normalized embeddings to the index
+        index.add(embeddings)
+        
+        print('getting distances')
+        # Perform the nearest neighbor search
+        distances, indices = index.search(embeddings, n_neighbors)    
+        print('end of getting distances')   
+
     max_dist = np.max(distances)
 
     filled_mat = lil_matrix((len(embeddings), len(embeddings)))
