@@ -39,6 +39,7 @@ The UC-FIRe model has been made possible due to a collaborative effort of the fo
 - <a href = "https://ift.devinci.fr/">Institute for Future Technology</a>
 - <a href = "https://www.esilv.fr/">De Vinci Engineering School</a>
 - <a href = "https://www.devinci.fr/research-center/">De Vinci Research Center</a>
+- <a href = "https://www.devinci.fr/"> De Vinci Higher Education</a>
 
 
 
