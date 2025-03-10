@@ -4,11 +4,13 @@ import pandas as pd
 
 from multiprocessing import Pool, cpu_count
 import multiprocessing
-
+import re
 
 nlp = spacy.load('en_core_web_sm')
 stopwords = nlp.Defaults.stop_words
 clean_tokens = lambda tokens : ' '.join([token.lemma_.lower() for token in tokens if token.lemma_.lower() not in stopwords and not token.is_punct])
+
+splitter = re.compile(r"(?u)\b\w+\b").findall
 
 def pre_process(elem_to_preprocess: tuple[int, dict[str,str]]) -> tuple[int, str]:
   """
@@ -90,14 +92,63 @@ def clean_tokens(tokens):
         if (token.lemma_.lower() not in stopwords and not token.is_punct)
     ])
 
+'''
+def preprocess_text(text):
+    # Add spaces around specific punctuation: . ! ? , ' / ( )
+    text = re.sub(r"([.\!?,'/()])", r" \1 ", text)
+
+    # Add spaces around underscores (_), but not within numbers (e.g., var_1 remains unchanged)
+    text = re.sub(r"(?<!\d)_(?!\d)", " _ ", text)
+
+    # Add a space after opening curly braces if followed by text (for LaTeX cases like \text{word})
+    text = re.sub(r"(\{)([^\s])", r"\1 \2", text)
+
+    # Convert to lowercase
+    text = text.lower()
+
+    # Normalize multiple spaces
+    text = re.sub(r"\s+", " ", text).strip()
+
+    return text
+'''
+def preprocess_text(text):
+    # Add spaces around specific punctuation: . ! ? , ' / ( )
+    # But avoid adding spaces to dots in decimal numbers (e.g., 0.75)
+    text = re.sub(r"(?<!\d)([.\!?,'/()])(?!\d)", r" \1 ", text)
+
+    # Add spaces around underscores (_), but not within numbers (e.g., var_1 remains unchanged)
+    text = re.sub(r"(?<!\d)_(?!\d)", " _ ", text)
+
+    # Add spaces before `[`
+    text = re.sub(r"(?<=\w|\.)\[", " [", text)
+    
+    # Add spaces after `]` if followed by a word
+    text = re.sub(r"\](?=\w)", "] ", text)
+
+    # Add a space after opening curly braces if followed by text (for LaTeX cases like \text{word})
+    text = re.sub(r"(\{)([^\s])", r"\1 \2", text)
+
+    # Convert to lowercase
+    text = text.lower()
+
+    # Normalize multiple spaces
+    text = re.sub(r"\s+", " ", text).strip()
+
+    return text
+
 def process_item(item):
     """
     Fonction qui réalise le prétraitement d'un seul élément du corpus.
     Retourne un tuple (key, texte_nettoyé).
     """
     key, val = item
-    title_clean = clean_tokens(nlp(val['title'].lower()))
-    text_clean  = clean_tokens(nlp(val['text'].lower()))
+    
+    #title_clean = clean_tokens(nlp(val['title'].lower()))
+    #text_clean  = clean_tokens(nlp(val['text'].lower()))
+
+    title_clean = clean_tokens(nlp(preprocess_text(val['title'])))
+    text_clean  = clean_tokens(nlp(preprocess_text(val['text'])))
+
     return key, f"{title_clean} {text_clean}"
 
 def preprocess_corpus_dict(corpus):

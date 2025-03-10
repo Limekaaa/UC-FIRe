@@ -297,6 +297,7 @@ def get_replaceable_words(corpus, embeddings, thresh_prob, metric, n_neighbors, 
     """
 
     unique_words = matrix_creation.get_unique_words(corpus)
+    unique_words = list(set(unique_words).intersection(set(embeddings.index)))
     embeddings = embeddings.loc[list(unique_words)]
     words = np.array(list(embeddings.index))
 

@@ -124,10 +124,13 @@ def get_similarity_matrix(embeddings:pd.DataFrame, metric:str = 'euclidean', n_n
         embeddings = np.array(embeddings, dtype=np.float32)
         embeddings = np.ascontiguousarray(embeddings)
         # Normalize the embeddings to unit length (for cosine similarity)
+        print("Normalizing embeddings for cosine similarity...")
         faiss.normalize_L2(embeddings)  # Normalize the embeddings in place
-
+        print("Embeddings normalized.")
         # Create a Faiss index for cosine similarity (using inner product)
+        print("Creating Faiss index...")
         index = faiss.IndexFlatIP(embeddings.shape[1])
+        print("Faiss index created.")
 
         # Add the normalized embeddings to the index
         index.add(embeddings)
@@ -135,7 +138,7 @@ def get_similarity_matrix(embeddings:pd.DataFrame, metric:str = 'euclidean', n_n
         print('getting distances')
         # Perform the nearest neighbor search
         distances, indices = index.search(embeddings, n_neighbors)    
-        print('end of getting distances')   
+        print('end of getting distances')
 
     max_dist = np.max(distances)
 
@@ -146,9 +149,14 @@ def get_similarity_matrix(embeddings:pd.DataFrame, metric:str = 'euclidean', n_n
             filled_mat[i, indices[i]] = 1-(distances[i]/max_dist)
             filled_mat[indices[i], i] = 1-(distances[i]/max_dist)
     else:
-        for i in tqdm(range(len(embeddings)), desc='filling similarity matrix'):
-            filled_mat[i, indices[i]] = 1-distances[i]
-            filled_mat[indices[i], i] = 1-distances[i]
+        if method == 'exact':
+            for i in tqdm(range(len(embeddings)), desc='filling similarity matrix'):
+                filled_mat[i, indices[i]] = 1-distances[i]
+                filled_mat[indices[i], i] = 1-distances[i]
+        else:
+            for i in tqdm(range(len(embeddings)), desc='filling similarity matrix'):
+                filled_mat[i, indices[i]] = distances[i]
+                filled_mat[indices[i], i] = distances[i]
 
     filled_mat = filled_mat.tocsc()
 
@@ -286,7 +294,8 @@ def words_coexistence_probability_compact_parallel(corpus: dict[int, str], words
     :return: csc_matrix - the sparse matrix of coexistence probabilities.
     """
     # Build a mapping from each word to the set of document IDs in which it appears.
-    word_presence = get_word_presence(corpus)
+    #word_presence = get_word_presence(corpus)
+    word_presence = get_word_presence2(corpus, words)
     unique_words = words  # assuming 'words' is the list of unique words
 
     # You can set num_processes to a specific number (e.g. os.cpu_count()) or leave it as None.
