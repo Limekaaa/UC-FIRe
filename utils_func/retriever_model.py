@@ -20,7 +20,7 @@ class Retriever:
     self.embeddings = embeddings
     
 
-  def search(self, corpus: dict[str, dict[str, str]], queries: dict[str, str], top_k: int, score_function,**kwargs) -> dict[str, dict[str, float]]:
+  def search(self, corpus: dict[str, dict[str, str]], queries: dict[str, str], top_k: int, score_function='cos_sim',**kwargs) -> dict[str, dict[str, float]]:
     results = {}
     for query_id, query in tqdm(queries.items(), desc="tests in progress"):
         # Process the query
