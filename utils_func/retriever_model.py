@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import fasttext
 from sklearn.neighbors import NearestNeighbors
-
+from typing import Literal
 
 
 class Retriever:
@@ -19,19 +19,14 @@ class Retriever:
     self.thresh = thresh
     self.embeddings = embeddings
     
-    if self.embeddings is not None:
-      self.neigh = NearestNeighbors(n_neighbors=100, metric='cosine', n_jobs=-1)
-      self.neigh.fit(self.embeddings)
 
-
-
-  def search(self, corpus: dict[str, dict[str, str]], queries: dict[str, str], top_k: int, score_function,**kwargs) -> dict[str, dict[str, float]]:
+  def search(self, corpus: dict[str, dict[str, str]], queries: dict[str, str], top_k: int, score_function='cos_sim',**kwargs) -> dict[str, dict[str, float]]:
     results = {}
     for query_id, query in tqdm(queries.items(), desc="tests in progress"):
         # Process the query
         #cleaned_query = preprocess_corpus([query])
         cleaned_query = corpus_processing.clean_tokens(corpus_processing.nlp(query.lower()))
-        cleaned_query = clustering.rewrite_text(cleaned_query, self.clusters_dict, self.fasttext_model, thresh = self.thresh, neighbors = self.neigh)
+        cleaned_query = clustering.rewrite_text(cleaned_query, self.clusters_dict, self.fasttext_model, thresh = self.thresh)
         tokenized_query = cleaned_query.split()
 
         # Apply BM25 to get scores
@@ -43,69 +38,35 @@ class Retriever:
         results[query_id] = sorted_scores
     return results
 
-class FullRetriever:
-  def __init__(self, embeddings:pd.DataFrame, fasttext_model,n_neighbors = 20, alpha:float=0.5, thresh = 0.8, metric = 'cosine', k1:float = 0.9, b:float = 0.4,coexistence_matrix:pd.DataFrame = None, thresh_prob = 0, compact_matrix = False):
+class UCFIRe:
+  def __init__(self, embeddings:pd.DataFrame, fasttext_model, n_neighbors = 20, alpha:float=0.5, thresh = 0.8, metric:Literal['euclidean', 'cosine'] ='cosine', k1:float = 0.9, b:float = 0.4, thresh_prob:float = 0.0):
     self.n_neighbors = n_neighbors
     self.alpha = alpha
     self.thresh = thresh
-    self.metric = metric
     self.embeddings = embeddings
-    self.coexistence_matrix = coexistence_matrix
     self.k1 = k1
     self.b = b
     self.cleaned_corpus = None
     self.thresh_prob = thresh_prob
-    self.compact_matrix = compact_matrix
     self.fasttext_model = fasttext_model
+    self.metric = metric
 
     self.tokenized_corpus = None
     self.retriever = None
 
 
-  def fit(self, corpus:dict[str, str], is_clean = False):
-    if not is_clean:
-      self.cleaned_corpus = corpus_processing.preprocess_corpus_dict(corpus)
-    else:
-      self.cleaned_corpus = corpus
-    if self.coexistence_matrix is None:
-      if self.compact_matrix or self.thresh_prob > 0:
-        self.coexistence_matrix = matrix_creation.words_coexistence_probability_compact_parallel(self.cleaned_corpus, self.thresh_prob)
-      else: 
-        self.coexistence_matrix = matrix_creation.words_coexistence_probability(self.cleaned_corpus)
-
-    words_in_common = list(set(self.coexistence_matrix.columns).intersection(set(self.embeddings.index)))
-    self.embeddings = self.embeddings.loc[words_in_common]
-    if self.compact_matrix:
-      self.sim_mat = matrix_creation.get_similirity_matrix_compact(self.embeddings, metric=self.metric, n_neighbors=self.n_neighbors)
-    else:
-      self.sim_mat = matrix_creation.get_similarity_matrix(self.embeddings, metric=self.metric, n_neighbors=self.n_neighbors)
-
-    replaceable_words = clustering.get_replaceable_words(self.sim_mat, self.coexistence_matrix, alpha=self.alpha, thresh=self.thresh)
-        
-    word_graph = clustering.Graph(replaceable_words)
-
-    print('finding cycles...')
-    self.clusters = word_graph.find_all_cycles()
-    print('end of finding cycles')
-
-    self.clust_dict = clustering.clusters_dict(self.clusters)
-    self.rewritten_corpus = clustering.rewrite_corpus(self.cleaned_corpus, self.clust_dict)
-    self.retriever = Retriever(self.rewritten_corpus, self.fasttext_model, self.clust_dict, k1=self.k1, b=self.b, thresh=self.thresh)
-    self.tokenized_corpus = self.retriever.tokenized_corpus
-
-  def fit_cheaper(self, corpus, is_clean = False, knn_method = 'exact'):
+  def fit(self, corpus, is_clean = False, knn_method:Literal['exact', 'faiss'] = 'exact'):
     if not is_clean:
       self.cleaned_corpus = corpus_processing.preprocess_corpus_dict(corpus)
     else:
       self.cleaned_corpus = corpus
 
-    #replaceable_words = matrix_creation.get_replaceable_words_end2end(self.cleaned_corpus, self.embeddings, self.thresh_prob, self.metric, self.n_neighbors, self.alpha, self.thresh)
     replaceable_words = clustering.get_replaceable_words(self.cleaned_corpus, self.embeddings, self.thresh_prob, self.metric, self.n_neighbors, self.alpha, self.thresh, knn_method)
 
     word_graph = clustering.Graph(replaceable_words)
-    print('finding cycles...')
+    print('finding graph components...')
     self.clusters = word_graph.find_all_cycles()
-    print('end of finding cycles')
+    print('grap components found')
 
     self.clust_dict = clustering.clusters_dict(self.clusters)
 

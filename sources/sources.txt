@@ -1,1 +1,0 @@
-https://fasttext.cc/docs/en/aligned-vectors.html
