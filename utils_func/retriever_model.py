@@ -66,7 +66,7 @@ class UCFIRe:
     word_graph = clustering.Graph(replaceable_words)
     print('finding graph components...')
     self.clusters = word_graph.find_all_cycles()
-    print('grap components found')
+    print('graph components found')
 
     self.clust_dict = clustering.clusters_dict(self.clusters)
 
