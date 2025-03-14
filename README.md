@@ -16,7 +16,7 @@ git clone https://github.com/Limekaaa/UC-FIRe
 ```
 
 - To reproduce the experiment on NFCorpus you can run the notebook main.ipynb as it is !
-- To test different dataset from the <a href = "https://github.com/beir-cellar">BEIR benchmark</a> feel free to check out the corporas available and play with the parameters.
+- To test different dataset from the [BEIR benchmark](https://github.com/beir-cellar) feel free to check out the corporas available and play with the parameters.
 - You can also test it on your own corpus by loading it in the same format as the datasets present in BEIR.
 
 ## :fire: Authors
@@ -36,10 +36,10 @@ Thanks go to all these wonderful collaborations for their contribution towards t
 
 The UC-FIRe model has been made possible due to a collaborative effort of the following universities and organizations:
 
-- <a href = "https://ift.devinci.fr/">Institute for Future Technology</a>
-- <a href = "https://www.esilv.fr/">De Vinci Engineering School</a>
-- <a href = "https://www.devinci.fr/research-center/">De Vinci Research Center</a>
-- <a href = "https://www.devinci.fr/"> De Vinci Higher Education</a>
+- [Institute for Future Technology](https://ift.devinci.fr/)
+- [De Vinci Engineering School](https://www.esilv.fr/)
+- [De Vinci Research Center](https://www.devinci.fr/research-center/)
+- [De Vinci Higher Education](https://www.devinci.fr/)
 
 
 
