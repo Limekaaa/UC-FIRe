@@ -10,7 +10,7 @@ For the moment, the publication is under review at the 2025 ECML-PKDD Conference
 
 ## :fire: How to use it ? 
 
-- Clone this repository
+- Clone this repository or download it.
 ```bash
 git clone https://github.com/Limekaaa/UC-FIRe
 ```
