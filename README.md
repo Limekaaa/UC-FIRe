@@ -6,8 +6,7 @@ UC-FIRe is an unsupervised model to perform Information Retrieval that does not 
 
 For more information, checkout out our publication:
 
-For the moment, the publication is under review at the 2025 ECML-PKDD Conference in the Applied Data-Science track. 
-
+For the moment, the publication is under review.
 ## :fire: How to use it ? 
 
 - Clone this repository or download it.
