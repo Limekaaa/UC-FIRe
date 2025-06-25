@@ -12,6 +12,13 @@ from scipy.sparse import csc_matrix, lil_matrix
 import os
 import faiss
 
+import torch
+
+from transformers import BertTokenizer, BertModel
+
+from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
+
+
 def get_unique_words(corpus:dict[str, str]) -> set:
     """
     Function to find the unique words in a corpus
@@ -21,9 +28,10 @@ def get_unique_words(corpus:dict[str, str]) -> set:
     unique_words = set()
     for doc_id in tqdm(corpus, desc="Getting unique words"):
         text = corpus[doc_id]
-        text = text.split()
         for word in text:
             unique_words.add(word)
+    unique_words.remove('[CLS]')
+    unique_words.remove('[SEP]')
     return unique_words
 
 def get_word_presence(corpus:dict[str, str]) -> dict[str, set[int]]:
@@ -37,9 +45,9 @@ def get_word_presence(corpus:dict[str, str]) -> dict[str, set[int]]:
 
     for doc_id in tqdm(corpus, desc="Getting word presence"):
         text = corpus[doc_id]
-        text = text.split()
         for word in text:
-            word_presence[word].add(doc_id)
+            if word != '[CLS]' and word != '[SEP]':
+                word_presence[word].add(doc_id)
     return word_presence
 
 def words_coexistence_probability_compact(corpus:dict[str, str], words:list[str], thresh_prob = 0) -> csc_matrix:

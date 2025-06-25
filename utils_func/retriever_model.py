@@ -6,18 +6,34 @@ import pandas as pd
 import fasttext
 from sklearn.neighbors import NearestNeighbors
 from typing import Literal
-
+import faiss
 
 class Retriever:
-  def __init__(self, corpus:dict[str, str], fasttext_model, clusters_dict:dict[str,str] = {}, thresh:float = 0.75,k1:float=0.9, b:float=0.4, embeddings:pd.DataFrame = None):
+  def __init__(self, corpus:dict[str, str], model, tokenizer,clusters_dict:dict[str,str] = {}, thresh:float = 0.75,k1:float=0.9, b:float=0.4, embeddings:pd.DataFrame = None):
     cleaned_corpus = corpus
     self.tokenized_corpus = [cleaned_corpus[key].split() for key in corpus.keys()]
     self.bm25_model = BM25Okapi(self.tokenized_corpus, k1=k1, b=b)    
     self.keys = list(corpus.keys())
     self.clusters_dict = clusters_dict
-    self.fasttext_model = fasttext_model
+    self.model = model
+    self.tokenizer = tokenizer
     self.thresh = thresh
     self.embeddings = embeddings
+
+    if self.model != None and self.tokenizer != None:
+      emb = np.array(embeddings, dtype=np.float32)
+      emb = np.ascontiguousarray(emb)
+      # Normalize the embeddings to unit length (for cosine similarity)
+      #print("Normalizing embeddings for cosine similarity...")
+      faiss.normalize_L2(emb)  # Normalize the embeddings in place
+      #print("Embeddings normalized.")
+      # Create a Faiss index for cosine similarity (using inner product)
+      #print("Creating Faiss index...")
+      self.faiss_index = faiss.IndexFlatIP(emb.shape[1])
+      print("Faiss index created.")
+
+      # Add the normalized embeddings to the index
+      self.faiss_index.add(emb)
     
 
   def search(self, corpus: dict[str, dict[str, str]], queries: dict[str, str], top_k: int, score_function='cos_sim',**kwargs) -> dict[str, dict[str, float]]:
@@ -26,7 +42,12 @@ class Retriever:
         # Process the query
         #cleaned_query = preprocess_corpus([query])
         cleaned_query = corpus_processing.clean_tokens(corpus_processing.nlp(query.lower()))
-        cleaned_query = clustering.rewrite_text(cleaned_query, self.clusters_dict, self.fasttext_model, thresh = self.thresh)
+
+        if self.model != None and self.tokenizer != None:
+          cleaned_query = clustering.rewrite_query_BERT(cleaned_query, self.clusters_dict, self.model, self.tokenizer, self.faiss_index, list(self.embeddings.index),thresh = self.thresh, device = str(self.model.device))
+        else:
+          cleaned_query = self.tokenizer.convert_ids_to_tokens(self.tokenizer(cleaned_query)['input_ids'])
+          cleaned_query = clustering.rewrite_text(cleaned_query, self.clusters_dict, thresh = self.thresh)
         tokenized_query = cleaned_query.split()
 
         # Apply BM25 to get scores
@@ -39,7 +60,7 @@ class Retriever:
     return results
 
 class UCFIRe:
-  def __init__(self, embeddings:pd.DataFrame, fasttext_model, n_neighbors = 20, alpha:float=0.5, thresh = 0.8, metric:Literal['euclidean', 'cosine'] ='cosine', k1:float = 0.9, b:float = 0.4, thresh_prob:float = 0.0):
+  def __init__(self, embeddings:pd.DataFrame, model = None ,tokenizer = None, n_neighbors = 20, alpha:float=0.5, thresh = 0.8, metric:Literal['euclidean', 'cosine'] ='cosine', k1:float = 0.9, b:float = 0.4, thresh_prob:float = 0.0):
     self.n_neighbors = n_neighbors
     self.alpha = alpha
     self.thresh = thresh
@@ -48,9 +69,9 @@ class UCFIRe:
     self.b = b
     self.cleaned_corpus = None
     self.thresh_prob = thresh_prob
-    self.fasttext_model = fasttext_model
+    self.model = model
+    self.tokenizer = tokenizer
     self.metric = metric
-
     self.tokenized_corpus = None
     self.retriever = None
 
@@ -62,7 +83,7 @@ class UCFIRe:
       self.cleaned_corpus = corpus
 
     replaceable_words = clustering.get_replaceable_words(self.cleaned_corpus, self.embeddings, self.thresh_prob, self.metric, self.n_neighbors, self.alpha, self.thresh, knn_method)
-
+    self.replaceable_words = replaceable_words
     word_graph = clustering.Graph(replaceable_words)
     print('finding graph components...')
     self.clusters = word_graph.find_all_cycles()
@@ -71,12 +92,16 @@ class UCFIRe:
     self.clust_dict = clustering.clusters_dict(self.clusters)
 
     self.rewritten_corpus = clustering.rewrite_corpus(self.cleaned_corpus, self.clust_dict)
-    self.retriever = Retriever(self.rewritten_corpus, self.fasttext_model,self.clust_dict, k1=self.k1, b=self.b, embeddings = self.embeddings)
+    self.retriever = Retriever(self.rewritten_corpus, self.model, self.tokenizer,self.clust_dict, k1=self.k1, b=self.b, embeddings = self.embeddings)
     self.tokenized_corpus = self.retriever.tokenized_corpus
 
-  def switch_fasttext_model(self, fasttext_model):
-    self.fasttext_model = fasttext_model
-    self.retriever.fasttext_model = fasttext_model
+  def switch_model(self, model):
+    self.model = model
+    self.retriever.model = model
+
+  def switch_tokenizer(self, tokenizer):
+    self.tokenizer = tokenizer
+    self.retriever.tokenizer = tokenizer
 
   def search(self, corpus: dict[str, dict[str, str]], queries: dict[str, str], top_k: int, score_function,**kwargs) -> dict[str, dict[str, float]]:
     return self.retriever.search(corpus, queries, top_k, score_function, **kwargs)

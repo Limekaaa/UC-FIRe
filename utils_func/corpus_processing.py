@@ -6,9 +6,16 @@ from multiprocessing import Pool, cpu_count
 import multiprocessing
 import re
 
+import torch
+
+from transformers import BertTokenizer, BertModel
+
+from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
+
+
 nlp = spacy.load('en_core_web_sm')
-stopwords = nlp.Defaults.stop_words
- 
+stopwords = nlp.Defaults.stop_words 
+
 def save_processed_corpus(corpus:dict[str:str], path_to_save:str):
     """
     Saves the preprocessed corpus to a csv file\n
@@ -92,7 +99,7 @@ def process_item(item):
 
     return key, f"{title_clean} {text_clean}"
 
-def preprocess_corpus_dict(corpus: dict[str, dict[str, str]]) -> dict[str, str]:
+def preprocess_corpus_dict(corpus: dict[str, dict[str, str]], tokenizer = None, tokenize = False) -> dict[str, str]:
     """
     Preprocesses a corpus in parallel.
     Returns a dictionary with the same keys as the input,
@@ -109,8 +116,10 @@ def preprocess_corpus_dict(corpus: dict[str, dict[str, str]]) -> dict[str, str]:
         for key, processed_text in tqdm(
             pool.imap_unordered(process_item, items),
             total=len(items),
-            desc="Prétraitement du corpus"
+            desc="Preprocessing corpus"
         ):
             results_dict[key] = processed_text
+    if tokenize:
+        results_dict = {key: tokenizer.convert_ids_to_tokens(tokenizer(val)['input_ids']) for key, val in tqdm(results_dict.items(), desc='Final processing')}
 
     return results_dict

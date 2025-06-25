@@ -18,7 +18,11 @@ try:
 except:
     pass
 
+import torch
 
+from transformers import BertTokenizer, BertModel
+
+from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 
 class Graph:
     def __init__(self, graph_dict=None):
@@ -132,12 +136,31 @@ class Graph:
         return res
 
 
+def clusters_dict(clusters: list[set[str]]):
+    """
+    Create a dictionary mapping each word to its cluster ID.\n
+    :param clusters: List of word clusters (sets of words).\n
+    :return: Dictionary {word: cluster_id} where cluster_id is the cluster's index.
+    """
+    # Create indexed cluster list to preserve order
+    indexed_clusters = list(enumerate(clusters))
+    
+    # Process clusters sequentially
+    cluster_mappings = [process_cluster(cluster) for cluster in tqdm(indexed_clusters, desc='Creating clusters dict')]
+    
+    # Merge results (later clusters overwrite earlier ones)
+    merged = {}
+    for mapping in cluster_mappings:
+        merged.update(mapping)
+    
+    return merged
+
 def process_cluster(args: tuple[int, set[str]]) -> dict[str, int]:
     """Helper function to process a single cluster into a word-to-cluster-ID mapping."""
     cluster_id, words = args
     return {word: cluster_id for word in words}
 
-def clusters_dict(clusters: list[set[str]]) -> dict[str, int]:
+def clusters_dict_parallel(clusters: list[set[str]]) -> dict[str, int]: # to rename, parallel version
     """
     Create a dictionary mapping each word to its cluster ID in parallel.\n
     :param clusters: List of word clusters (sets of words).\n
@@ -159,7 +182,60 @@ def clusters_dict(clusters: list[set[str]]) -> dict[str, int]:
     
     return merged
 
-def rewrite_text(text:str, clust_dict:dict[str,str], fasttext_model: fasttext.FastText = None, thresh=0.75) -> str:
+def rewrite_query_BERT(text:str, clust_dict:dict[str,str], model, tokenizer, faiss_index, words,thresh=0.75, device='cpu') -> str:
+    """
+    Rewrite the text using the clusters dictionary.\n
+    :param text: The text to rewrite.\n
+    :param clust_dict: The dictionary containing for each word, the cluster it belongs to.\n
+    :return: The rewritten text.
+    """
+    text = tokenizer(text, return_tensors="pt")
+    
+    if set(tokenizer.convert_ids_to_tokens(text['input_ids'][0])).intersection(set(list(clust_dict.keys()))) == set(text['input_ids'][0].numpy().tolist()):
+        return ' '.join([clust_dict[i] for i in tokenizer.convert_ids_to_tokens(text['input_ids'][0])])
+    
+    with torch.no_grad():
+        outputs = model(**text.to(device))
+
+    hidden_states = outputs.hidden_states
+    last_4_layers = torch.stack(hidden_states[-4:])
+    embeddings = last_4_layers.mean(dim=0).squeeze(0)
+
+    embeddings = embeddings.detach().cpu().numpy()
+
+    words = set(clust_dict.keys())
+    l_words = len(words)
+    to_ret = []
+
+    for i in range(len(embeddings)):
+        words.add(tokenizer.convert_ids_to_tokens(text['input_ids'][0])[i])
+        if len(words) == l_words:
+            to_ret.append(clust_dict[tokenizer.convert_ids_to_tokens(text['input_ids'][0])[i]])
+        else:
+            words = set(clust_dict.keys())
+            neighs = faiss_index.search(embeddings[i], 500)
+            neighs = [(similarity[i], words[indices[i]]) for i in range(len(indices)) if similarity[i]>thresh]
+            diff_clust = [i[1] for i in neighs]
+    
+            if neighs != []:
+                dico_clust = dict()
+                for sim, clust in neighs:
+                    if clust in dico_clust.keys():
+                        dico_clust[clust] += sim
+                    else: 
+                        dico_clust[clust] = sim
+
+                dico_clust = {key:dico_clust[key]/diff_clust.count(key) for key in list(dico_clust.keys())}
+                best_key = list(dico_clust.keys())[0]
+                for key in list(dico_clust.keys()):
+                    if dico_clust[key] > dico_clust[best_key]:
+                        best_key = key
+                to_ret.append(str(best_key))
+
+    return ' '.join(to_ret)
+
+
+def rewrite_text(text:list[str], clust_dict:dict[str,str], fasttext_model: fasttext.FastText = None, thresh=0.75) -> str:
     """
     Rewrite the text using the clusters dictionary.\n
     :param text: The text to rewrite.\n
@@ -167,13 +243,13 @@ def rewrite_text(text:str, clust_dict:dict[str,str], fasttext_model: fasttext.Fa
     :return: The rewritten text.
     """
 
-    text = text.split()
     words = set(clust_dict.keys())
     l_words = len(words)
     to_ret = []
 
     for i in range(len(text)):
         words.add(text[i])
+        
         if len(words) == l_words:
             to_ret.append(str(clust_dict[text[i]]))
         else:
@@ -203,12 +279,17 @@ def rewrite_text(text:str, clust_dict:dict[str,str], fasttext_model: fasttext.Fa
 
     return ' '.join(to_ret)
 
+def rewrite_corpus(corpus, clust_dict):
+    to_ret = {}
+    for key in tqdm(corpus.keys()):
+        to_ret[key] = rewrite_text(corpus[key], clust_dict)
+    return to_ret
 
 def process_item(key_text: tuple[str, str], clust_dict: dict[str, str]) -> tuple[str, str]:
     key, text = key_text
     return (key, rewrite_text(text, clust_dict))
 
-def rewrite_corpus(corpus: dict[str, str], clust_dict: dict[str, str]) -> dict[str, str]:
+def rewrite_corpus_parallel(corpus: dict[str, str], clust_dict: dict[str, str]) -> dict[str, str]: # to rename when the problem with the tokenizer is over
     """
     Rewrite the corpus using the clusters dictionary in parallel.\n
     :param corpus: The corpus to rewrite.\n
@@ -239,6 +320,7 @@ def get_replaceable_words(corpus:dict[str:str], embeddings, thresh_prob:float, m
     """
 
     unique_words = matrix_creation.get_unique_words(corpus)
+
     unique_words = list(set(unique_words).intersection(set(embeddings.index)))
     embeddings = embeddings.loc[list(unique_words)]
     words = np.array(list(embeddings.index))
@@ -249,7 +331,8 @@ def get_replaceable_words(corpus:dict[str:str], embeddings, thresh_prob:float, m
         coexistence_matrix = matrix_creation.words_coexistence_probability_compact_parallel(corpus, list(embeddings.index),thresh_prob=thresh_prob)
     else:
         similarity_matrix = matrix_creation.get_similarity_matrix(embeddings, metric=metric, n_neighbors=n_neighbors, method=knn_method)
-        coexistence_matrix = matrix_creation.words_coexistence_probability_compact_parallel(corpus, list(embeddings.index),thresh_prob=thresh_prob)
+        #coexistence_matrix = matrix_creation.words_coexistence_probability_compact_parallel(corpus, list(embeddings.index),thresh_prob=thresh_prob)
+        coexistence_matrix = matrix_creation.words_coexistence_probability_compact(corpus, list(embeddings.index),thresh_prob=thresh_prob)
     
     if alpha == 1:
         to_ret = similarity_matrix
