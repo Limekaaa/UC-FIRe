@@ -4,7 +4,7 @@
 
 UC-FIRe is an unsupervised model to perform Information Retrieval that does not require GPU and is almost as fast as BM25 at inference while outperforming it on several corpora.
 
-For more information, checkout out [our publication](link in coming).
+For more information, checkout out [our publication](https://talnarchives.atala.org/ateliers/2025/CORIA/88.pdf).
 
 ## :fire: How to use it ? 
 
